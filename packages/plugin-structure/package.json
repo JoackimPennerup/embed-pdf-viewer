@@ -1,0 +1,52 @@
+{
+  "name": "@embedpdf/plugin-structure",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build:base": "vite build --mode base",
+    "build": "pnpm run clean && vite build --mode base",
+    "clean": "rimraf dist",
+    "lint": "eslint src --color",
+    "lint:fix": "eslint src --color --fix"
+  },
+  "dependencies": {
+    "@embedpdf/models": "workspace:*"
+  },
+  "devDependencies": {
+    "@embedpdf/build": "workspace:*",
+    "@embedpdf/core": "workspace:*",
+    "@types/react": "^18.2.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@embedpdf/core": "workspace:*",
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/embedpdf/embed-pdf-viewer",
+    "directory": "packages/plugin-structure"
+  },
+  "homepage": "https://www.embedpdf.com/docs",
+  "bugs": {
+    "url": "https://github.com/embedpdf/embed-pdf-viewer/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
