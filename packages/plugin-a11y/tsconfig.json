@@ -14,7 +14,7 @@
     "paths": {
       "@framework": ["./src/react/adapter.ts"],
       "@embedpdf/core/@framework": ["./src/react/core.ts"],
-      "@embedpdf/plugin-structure": ["./src/index.ts"]
+      "@embedpdf/plugin-a11y": ["./src/index.ts"]
     }
   },
   "include": ["src"],

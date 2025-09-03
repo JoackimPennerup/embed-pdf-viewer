@@ -8,14 +8,14 @@ export interface StructElement {
   attributes?: Record<string, string>;
 }
 
-export interface StructurePluginConfig {
+export interface A11yPluginConfig {
   debug?: boolean;
 }
 
-export interface StructureCapability {
+export interface A11yCapability {
   getStructElements: (pageIndex: number) => Promise<StructElement[]>;
 }
 
-export interface StructureState {}
+export interface A11yState {}
 
-export type StructureAction = { type: 'structure/noop' };
+export type A11yAction = { type: 'a11y/noop' };

@@ -1,15 +1,15 @@
-import { StructElement } from '@embedpdf/plugin-structure';
+import { StructElement } from '@embedpdf/plugin-a11y';
 import { useEffect, useState } from '@framework';
 
-import { useStructureCapability } from '../hooks';
+import { useA11yCapability } from '../hooks';
 
 type Props = {
   pageIndex: number;
   scale: number;
 };
 
-export function StructureLayer({ pageIndex, scale }: Props) {
-  const { provides } = useStructureCapability();
+export function A11yLayer({ pageIndex, scale }: Props) {
+  const { provides } = useA11yCapability();
   const [elements, setElements] = useState<StructElement[]>([]);
 
   useEffect(() => {

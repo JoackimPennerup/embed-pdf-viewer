@@ -1,22 +1,22 @@
 import { BasePlugin, PluginRegistry } from '@embedpdf/core';
 
-import { StructElement, StructureCapability, StructurePluginConfig } from './types';
+import { A11yCapability, A11yPluginConfig, StructElement } from './types';
 import { mapPdfTagToHtml } from './utils';
 
-export class StructurePlugin extends BasePlugin<StructurePluginConfig, StructureCapability> {
-  static readonly id = 'structure' as const;
+export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
+  static readonly id = 'a11y' as const;
 
-  private config: StructurePluginConfig = { debug: false };
+  private config: A11yPluginConfig = { debug: false };
 
   constructor(id: string, registry: PluginRegistry) {
     super(id, registry);
   }
 
-  async initialize(config: StructurePluginConfig): Promise<void> {
+  async initialize(config: A11yPluginConfig): Promise<void> {
     this.config = { ...this.config, ...config };
   }
 
-  protected buildCapability(): StructureCapability {
+  protected buildCapability(): A11yCapability {
     return {
       getStructElements: this.getStructElements.bind(this),
     };
