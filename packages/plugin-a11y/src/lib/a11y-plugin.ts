@@ -35,7 +35,7 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
     if (typeof engine.getStructTree !== 'function') {
       return [];
     }
-    const raw: any[] = await engine.getStructTree(coreState.document, page);
+    const raw: any[] = await engine.getStructTree(coreState.document, page).toPromise();
     return raw.map((el) => ({
       tag: el.tag,
       htmlTag: mapPdfTagToHtml(el.tag),

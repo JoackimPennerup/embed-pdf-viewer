@@ -70,6 +70,7 @@ import {
   TextContext,
   PdfGlyphObject,
   PdfPageGeometry,
+  PdfStructElement,
   PdfRun,
   toIntRect,
   Quad,
@@ -7643,12 +7644,12 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
    * Walk the tagged structure tree of a page and return a flat list of elements
    * containing tag name, text content and bounding rectangle.
    */
-  async getStructTree(doc: PdfDocumentObject, page: PdfPageObject) {
+  getStructTree(doc: PdfDocumentObject, page: PdfPageObject): PdfTask<PdfStructElement[]> {
     this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
 
     const ctx = this.cache.getContext(doc.id);
     if (!ctx) {
-      return [] as any[];
+      return PdfTaskHelper.resolve([]);
     }
 
     const pageCtx = ctx.acquirePage(page.index);
@@ -7657,7 +7658,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
     if (!treePtr) {
       pageCtx.release();
-      return [] as any[];
+      return PdfTaskHelper.resolve([]);
     }
 
     const unionRect = (a: Rect, b: Rect): Rect => {
@@ -7738,7 +7739,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       return { text, rect };
     };
 
-    const elements: any[] = [];
+    const elements: PdfStructElement[] = [];
 
     const walk = (elPtr: number) => {
       const tagLen = this.pdfiumModule.FPDF_StructElement_GetType(elPtr, 0, 0);
@@ -7780,7 +7781,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
     this.pdfiumModule.FPDF_StructTree_Close(treePtr);
     pageCtx.release();
-    return elements;
+    return PdfTaskHelper.resolve(elements);
   }
 
   /**

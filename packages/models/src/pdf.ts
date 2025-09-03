@@ -2125,6 +2125,30 @@ export interface SearchAllPagesResult {
 }
 
 /**
+ * Structural element extracted from the PDF structure tree
+ *
+ * @public
+ */
+export interface PdfStructElement {
+  /**
+   * Tag name of the element
+   */
+  tag: string;
+  /**
+   * Text content of the element
+   */
+  text: string;
+  /**
+   * Bounding rectangle of the element in device coordinates
+   */
+  rect: Rect;
+  /**
+   * Additional attributes of the element
+   */
+  attributes: Record<string, string>;
+}
+
+/**
  * Glyph object
  *
  * @public
@@ -2715,6 +2739,13 @@ export interface PdfEngine<T = Blob> {
    * @returns task contains the text rects or error
    */
   getPageTextRects: (doc: PdfDocumentObject, page: PdfPageObject) => PdfTask<PdfTextRectObject[]>;
+  /**
+   * Walk the tagged structure tree of the page and return structural elements
+   * @param doc - pdf document
+   * @param page - pdf page
+   * @returns task that contains the structural elements
+   */
+  getStructTree?: (doc: PdfDocumentObject, page: PdfPageObject) => PdfTask<PdfStructElement[]>;
   /**
    * Search across all pages in the document
    * @param doc - pdf document
