@@ -1,2 +1,2 @@
-import { defineLibrary } from '../build/src/vite';
+import { defineLibrary } from '@embedpdf/build/vite';
 export default defineLibrary();
