@@ -563,6 +563,18 @@ export class WebWorkerEngine implements PdfEngine {
   }
 
   /**
+   * Walk the tagged structure tree and return a flat list of elements.
+   */
+  getStructTree(doc: PdfDocumentObject, page: PdfPageObject) {
+    this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
+    const requestId = this.generateRequestId(doc.id);
+    const task = new WorkerTask<any[]>(this.worker, requestId);
+    const request: ExecuteRequest = createRequest(requestId, 'getStructTree', [doc, page]);
+    this.proxy(task, request);
+    return task.toPromise();
+  }
+
+  /**
    * {@inheritDoc @embedpdf/models!PdfEngine.renderThumbnail}
    *
    * @public

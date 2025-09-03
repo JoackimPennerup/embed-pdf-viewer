@@ -372,6 +372,27 @@ export class EngineRunner {
       case 'getPageTextRects':
         task = this.engine[name]!(...args);
         break;
+      case 'getStructTree': {
+        (this.engine as any)[name](...args).then(
+          (result: any) => {
+            const response: ExecuteResponse = {
+              id: request.id,
+              type: 'ExecuteResponse',
+              data: { type: 'result', value: result },
+            };
+            this.respond(response);
+          },
+          (error: any) => {
+            const response: ExecuteResponse = {
+              id: request.id,
+              type: 'ExecuteResponse',
+              data: { type: 'error', value: error },
+            };
+            this.respond(response);
+          },
+        );
+        return;
+      }
       case 'searchAllPages':
         task = this.engine[name]!(...args);
         break;
