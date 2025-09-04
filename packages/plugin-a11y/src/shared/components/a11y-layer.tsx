@@ -23,8 +23,11 @@ export function A11yLayer({ pageIndex, scale }: Props) {
   if (!elements.length) return null;
 
   return (
-    <div style={{ position: 'absolute', left: 0, top: 0 }}>
+    <div className="embed-pdf-a11y" style={{ position: 'absolute', left: 0, top: 0, color: 'transparent', pointerEvents: 'none'}}>
       {elements.map((el, i) => {
+        if (el.text === "") {
+          return;
+        }
         const Tag = el.htmlTag as any;
         const style = {
           position: 'absolute' as const,
@@ -34,7 +37,7 @@ export function A11yLayer({ pageIndex, scale }: Props) {
           height: el.rect.size.height * scale,
         };
         return (
-          <Tag key={i} style={style} role={el.attributes?.role} aria-label={el.text}>
+          <Tag key={i} style={style} role={el.attributes?.role} data-pdf-tag={el.tag}>
             {el.text}
           </Tag>
         );
