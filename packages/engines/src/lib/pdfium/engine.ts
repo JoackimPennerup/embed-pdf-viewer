@@ -7661,6 +7661,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       return PdfTaskHelper.resolve([]);
     }
 
+    // Merge two rectangles into a bounding box that covers both.
     const unionRect = (a: Rect, b: Rect): Rect => {
       const x1 = Math.min(a.origin.x, b.origin.x);
       const y1 = Math.min(a.origin.y, b.origin.y);
@@ -7672,6 +7673,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       };
     };
 
+    // Extract text and geometry for the given MCID by scanning page objects.
     const getContentForMcid = (mcid: number): { text: string; rect: Rect | null } => {
       const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
       let text = '';
@@ -7740,6 +7742,10 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     };
 
     const elements: PdfStructElement[] = [];
+    // Track MCIDs we've already processed to avoid returning the same
+    // text multiple times when the structure tree references the same
+    // marked-content element in several places.
+    const seenMcids = new Set<number>();
 
     const walk = (elPtr: number) => {
       const tagLen = this.pdfiumModule.FPDF_StructElement_GetType(elPtr, 0, 0);
@@ -7753,6 +7759,12 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       let text = '';
       for (let i = 0; i < mcidCount; i++) {
         const mcid = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdAtIndex(elPtr, i);
+        // Some PDFs duplicate MCID references across elements. Skip any we
+        // have already handled to prevent duplicated text output.
+        if (seenMcids.has(mcid)) {
+          continue;
+        }
+        seenMcids.add(mcid);
         const info = getContentForMcid(mcid);
         text += info.text;
         if (info.rect) {
