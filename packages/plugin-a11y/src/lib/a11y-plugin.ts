@@ -36,12 +36,15 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
       return [];
     }
     const raw: any[] = await engine.getStructTree(coreState.document, page).toPromise();
-    return raw.map((el) => ({
+    const mapElement = (el: any): StructElement => ({
       tag: el.tag,
       htmlTag: mapPdfTagToHtml(el.tag),
       text: el.text ?? '',
       rect: el.rect,
       attributes: el.attributes || {},
-    }));
+      mcids: el.mcids || [],
+      children: (el.children || []).map(mapElement),
+    });
+    return raw.map(mapElement);
   }
 }

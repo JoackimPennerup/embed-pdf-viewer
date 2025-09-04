@@ -1,7 +1,8 @@
-import { StructElement } from '@embedpdf/plugin-a11y';
-import { useEffect, useState } from '@framework';
+import { StructElement as StructElementModel } from '@embedpdf/plugin-a11y';
+import { useEffect, useMemo, useState } from '@framework';
 
 import { useA11yCapability } from '../hooks';
+import { StructElement as StructElementComponent } from './struct-element';
 
 type Props = {
   pageIndex: number;
@@ -10,7 +11,8 @@ type Props = {
 
 export function A11yLayer({ pageIndex, scale }: Props) {
   const { provides } = useA11yCapability();
-  const [elements, setElements] = useState<StructElement[]>([]);
+  const [elements, setElements] = useState<StructElementModel[]>([]);
+  const mcidMap = useMemo(() => new Map<number, string>(), []);
 
   useEffect(() => {
     if (!provides) return;
@@ -24,21 +26,9 @@ export function A11yLayer({ pageIndex, scale }: Props) {
 
   return (
     <div style={{ position: 'absolute', left: 0, top: 0 }}>
-      {elements.map((el, i) => {
-        const Tag = el.htmlTag as any;
-        const style = {
-          position: 'absolute' as const,
-          left: el.rect.origin.x * scale,
-          top: el.rect.origin.y * scale,
-          width: el.rect.size.width * scale,
-          height: el.rect.size.height * scale,
-        };
-        return (
-          <Tag key={i} style={style} role={el.attributes?.role} aria-label={el.text}>
-            {el.text}
-          </Tag>
-        );
-      })}
+      {elements.map((el, i) => (
+        <StructElementComponent key={i} element={el} scale={scale} mcidMap={mcidMap} />
+      ))}
     </div>
   );
 }
