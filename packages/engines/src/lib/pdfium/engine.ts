@@ -7751,7 +7751,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const tagLen = this.pdfiumModule.FPDF_StructElement_GetType(elPtr, 0, 0);
       const tagPtr = this.memoryManager.malloc(tagLen + 1);
       this.pdfiumModule.FPDF_StructElement_GetType(elPtr, tagPtr, tagLen + 1);
-      const tag = this.pdfiumModule.pdfium.UTF8ToString(tagPtr);
+      const tag = this.pdfiumModule.pdfium.UTF16ToString(tagPtr);
       this.memoryManager.free(tagPtr);
 
       const mcidCount = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdCount(elPtr);

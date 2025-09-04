@@ -23,10 +23,10 @@ export function A11yLayer({ pageIndex, scale }: Props) {
   if (!elements.length) return null;
 
   return (
-    <div className="embed-pdf-a11y" style={{ position: 'absolute', left: 0, top: 0, color: 'transparent', pointerEvents: 'none'}}>
+    <div className="embedpdf-a11y-layer" style={{ position: 'absolute', left: 0, top: 0, color: 'transparent', pointerEvents: 'none'}}>
       {elements.map((el, i) => {
         if (el.text === "") {
-          return;
+          return null;
         }
         const Tag = el.htmlTag as any;
         const style = {
