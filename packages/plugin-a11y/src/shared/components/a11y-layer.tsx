@@ -2,7 +2,7 @@ import { StructElement as StructElementModel } from '@embedpdf/plugin-a11y';
 import { useEffect, useMemo, useState } from '@framework';
 
 import { useA11yCapability } from '../hooks';
-import { StructElement as StructElementComponent } from './struct-element';
+import { StructElementComponent } from './struct-element-component';
 
 type Props = {
   pageIndex: number;

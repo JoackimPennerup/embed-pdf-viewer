@@ -7649,7 +7649,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
     const ctx = this.cache.getContext(doc.id);
     if (!ctx) {
-      return PdfTaskHelper.resolve([]);
+      return PdfTaskHelper.resolve<PdfStructElement[]>([]);
     }
 
     const pageCtx = ctx.acquirePage(page.index);
@@ -7658,7 +7658,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
     if (!treePtr) {
       pageCtx.release();
-      return PdfTaskHelper.resolve([]);
+      return PdfTaskHelper.resolve<PdfStructElement[]>([]);
     }
 
     // Merge two rectangles into a bounding box that covers both.

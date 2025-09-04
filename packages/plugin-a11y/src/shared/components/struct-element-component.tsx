@@ -6,8 +6,9 @@ interface Props {
   mcidMap: Map<number, string>;
 }
 
-export function StructElement({ element, scale, mcidMap }: Props) {
+export function StructElementComponent({ element, scale, mcidMap }: Props) {
   const Tag = (element.htmlTag || 'span') as any;
+  //const Tag = ('span') as any;
 
   const existingIds = element.mcids
     .map((mcid) => mcidMap.get(mcid))
@@ -30,10 +31,10 @@ export function StructElement({ element, scale, mcidMap }: Props) {
   };
 
   return (
-    <Tag {...element.attributes} {...(id && { id })} {...ariaProps} style={style}>
+    <Tag {...element.attributes} {...(id && { id })} {...ariaProps} style={style} data-pdftag={element.tag}>
       {existingIds.length ? null : element.text}
       {element.children.map((child, i) => (
-        <StructElement key={i} element={child} scale={scale} mcidMap={mcidMap} />
+        <StructElementComponent key={i} element={child} scale={scale} mcidMap={mcidMap} />
       ))}
     </Tag>
   );
