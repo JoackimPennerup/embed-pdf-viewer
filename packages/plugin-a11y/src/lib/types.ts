@@ -6,6 +6,8 @@ export interface StructElement {
   text: string;
   rect: Rect;
   attributes?: Record<string, string>;
+  mcids: number[];
+  children: StructElement[];
 }
 
 export interface A11yPluginConfig {

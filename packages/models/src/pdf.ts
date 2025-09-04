@@ -2146,6 +2146,14 @@ export interface PdfStructElement {
    * Additional attributes of the element
    */
   attributes: Record<string, string>;
+  /**
+   * MCIDs referenced directly by this element
+   */
+  mcids: number[];
+  /**
+   * Child structural elements
+   */
+  children: PdfStructElement[];
 }
 
 /**
@@ -2741,6 +2749,7 @@ export interface PdfEngine<T = Blob> {
   getPageTextRects: (doc: PdfDocumentObject, page: PdfPageObject) => PdfTask<PdfTextRectObject[]>;
   /**
    * Walk the tagged structure tree of the page and return structural elements
+   * preserving the hierarchy
    * @param doc - pdf document
    * @param page - pdf page
    * @returns task that contains the structural elements

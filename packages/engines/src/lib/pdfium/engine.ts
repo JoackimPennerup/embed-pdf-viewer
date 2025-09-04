@@ -7641,8 +7641,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
   }
 
   /**
-   * Walk the tagged structure tree of a page and return a flat list of elements
-   * containing tag name, text content and bounding rectangle.
+   * Walk the tagged structure tree of a page and return a hierarchy of elements
+   * including tag name, text content, bounding rectangle and MCID references.
    */
   getStructTree(doc: PdfDocumentObject, page: PdfPageObject): PdfTask<PdfStructElement[]> {
     this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
@@ -7673,121 +7673,131 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       };
     };
 
-    // Extract text and geometry for the given MCID by scanning page objects.
-    const getContentForMcid = (mcid: number): { text: string; rect: Rect | null } => {
-      const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
-      let text = '';
-      let rect: Rect | null = null;
-      for (let i = 0; i < objectCount; i++) {
-        const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
-        if (this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr) !== mcid) {
-          continue;
-        }
-        const type = this.pdfiumModule.FPDFPageObj_GetType(objPtr);
-        if (type !== PdfPageObjectType.TEXT) {
-          continue;
-        }
-
-        const len = this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, 0, 0);
-        if (len > 0) {
-          const bufPtr = this.memoryManager.malloc(len);
-          this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, bufPtr, len);
-          text += this.pdfiumModule.pdfium.UTF16ToString(bufPtr);
-          this.memoryManager.free(bufPtr);
-        }
-
-        const leftPtr = this.memoryManager.malloc(4);
-        const bottomPtr = this.memoryManager.malloc(4);
-        const rightPtr = this.memoryManager.malloc(4);
-        const topPtr = this.memoryManager.malloc(4);
-        this.pdfiumModule.FPDFPageObj_GetBounds(objPtr, leftPtr, bottomPtr, rightPtr, topPtr);
-        const left = this.pdfiumModule.pdfium.getValue(leftPtr, 'float');
-        const bottom = this.pdfiumModule.pdfium.getValue(bottomPtr, 'float');
-        const right = this.pdfiumModule.pdfium.getValue(rightPtr, 'float');
-        const top = this.pdfiumModule.pdfium.getValue(topPtr, 'float');
-        this.memoryManager.free(leftPtr);
-        this.memoryManager.free(bottomPtr);
-        this.memoryManager.free(rightPtr);
-        this.memoryManager.free(topPtr);
-
-        const deviceXPtr = this.memoryManager.malloc(4);
-        const deviceYPtr = this.memoryManager.malloc(4);
-        this.pdfiumModule.FPDF_PageToDevice(
-          pageCtx.pagePtr,
-          0,
-          0,
-          page.size.width,
-          page.size.height,
-          0,
-          left,
-          top,
-          deviceXPtr,
-          deviceYPtr,
-        );
-        const x = this.pdfiumModule.pdfium.getValue(deviceXPtr, 'i32');
-        const y = this.pdfiumModule.pdfium.getValue(deviceYPtr, 'i32');
-        this.memoryManager.free(deviceXPtr);
-        this.memoryManager.free(deviceYPtr);
-
-        const r: Rect = {
-          origin: { x, y },
-          size: {
-            width: Math.ceil(Math.abs(right - left)),
-            height: Math.ceil(Math.abs(top - bottom)),
-          },
-        };
-        rect = rect ? unionRect(rect, r) : r;
+    // Build a lookup of MCID -> text and bounding box by scanning page objects once.
+    const mcidMap = new Map<number, { text: string; rect: Rect | null }>();
+    const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
+    for (let i = 0; i < objectCount; i++) {
+      const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
+      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
+      if (mcid < 0) {
+        continue;
       }
-      return { text, rect };
-    };
+      const type = this.pdfiumModule.FPDFPageObj_GetType(objPtr);
+      if (type !== PdfPageObjectType.TEXT) {
+        continue;
+      }
 
-    const elements: PdfStructElement[] = [];
-    // Track MCIDs we've already processed to avoid returning the same
-    // text multiple times when the structure tree references the same
-    // marked-content element in several places.
-    const seenMcids = new Set<number>();
+      const len = this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, 0, 0);
+      let text = '';
+      if (len > 0) {
+        const bufPtr = this.memoryManager.malloc(len);
+        this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, bufPtr, len);
+        text = this.pdfiumModule.pdfium.UTF16ToString(bufPtr);
+        this.memoryManager.free(bufPtr);
+      }
 
-    const walk = (elPtr: number) => {
+      const leftPtr = this.memoryManager.malloc(4);
+      const bottomPtr = this.memoryManager.malloc(4);
+      const rightPtr = this.memoryManager.malloc(4);
+      const topPtr = this.memoryManager.malloc(4);
+      this.pdfiumModule.FPDFPageObj_GetBounds(objPtr, leftPtr, bottomPtr, rightPtr, topPtr);
+      const left = this.pdfiumModule.pdfium.getValue(leftPtr, 'float');
+      const bottom = this.pdfiumModule.pdfium.getValue(bottomPtr, 'float');
+      const right = this.pdfiumModule.pdfium.getValue(rightPtr, 'float');
+      const top = this.pdfiumModule.pdfium.getValue(topPtr, 'float');
+      this.memoryManager.free(leftPtr);
+      this.memoryManager.free(bottomPtr);
+      this.memoryManager.free(rightPtr);
+      this.memoryManager.free(topPtr);
+
+      const deviceXPtr = this.memoryManager.malloc(4);
+      const deviceYPtr = this.memoryManager.malloc(4);
+      this.pdfiumModule.FPDF_PageToDevice(
+        pageCtx.pagePtr,
+        0,
+        0,
+        page.size.width,
+        page.size.height,
+        0,
+        left,
+        top,
+        deviceXPtr,
+        deviceYPtr,
+      );
+      const x = this.pdfiumModule.pdfium.getValue(deviceXPtr, 'i32');
+      const y = this.pdfiumModule.pdfium.getValue(deviceYPtr, 'i32');
+      this.memoryManager.free(deviceXPtr);
+      this.memoryManager.free(deviceYPtr);
+
+      const rect: Rect = {
+        origin: { x, y },
+        size: {
+          width: Math.ceil(Math.abs(right - left)),
+          height: Math.ceil(Math.abs(top - bottom)),
+        },
+      };
+      const existing = mcidMap.get(mcid);
+      if (existing) {
+        existing.text += text;
+        existing.rect = existing.rect ? unionRect(existing.rect, rect) : rect;
+      } else {
+        mcidMap.set(mcid, { text, rect });
+      }
+    }
+
+    const buildElement = (elPtr: number): PdfStructElement => {
       const tagLen = this.pdfiumModule.FPDF_StructElement_GetType(elPtr, 0, 0);
-      const tagPtr = this.memoryManager.malloc(tagLen + 1);
-      this.pdfiumModule.FPDF_StructElement_GetType(elPtr, tagPtr, tagLen + 1);
-      const tag = this.pdfiumModule.pdfium.UTF8ToString(tagPtr);
+      const tagPtr = this.memoryManager.malloc(tagLen);
+      this.pdfiumModule.FPDF_StructElement_GetType(elPtr, tagPtr, tagLen);
+      const tag = this.pdfiumModule.pdfium.UTF16ToString(tagPtr);
       this.memoryManager.free(tagPtr);
 
       const mcidCount = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdCount(elPtr);
+      const mcids: number[] = [];
       let rect: Rect | null = null;
       let text = '';
+      const seen = new Set<number>();
       for (let i = 0; i < mcidCount; i++) {
         const mcid = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdAtIndex(elPtr, i);
-        // Some PDFs duplicate MCID references across elements. Skip any we
-        // have already handled to prevent duplicated text output.
-        if (seenMcids.has(mcid)) {
+        if (seen.has(mcid)) {
           continue;
         }
-        seenMcids.add(mcid);
-        const info = getContentForMcid(mcid);
-        text += info.text;
-        if (info.rect) {
-          rect = rect ? unionRect(rect, info.rect) : info.rect;
+        seen.add(mcid);
+        mcids.push(mcid);
+        const info = mcidMap.get(mcid);
+        if (info) {
+          text += info.text;
+          if (info.rect) {
+            rect = rect ? unionRect(rect, info.rect) : info.rect;
+          }
         }
       }
 
-      elements.push({ tag, text, rect: rect ?? { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } }, attributes: {} });
-
       const childCount = this.pdfiumModule.FPDF_StructElement_CountChildren(elPtr);
+      const children: PdfStructElement[] = [];
       for (let i = 0; i < childCount; i++) {
         const childPtr = this.pdfiumModule.FPDF_StructElement_GetChildAtIndex(elPtr, i);
         if (childPtr) {
-          walk(childPtr);
+          children.push(buildElement(childPtr));
         }
       }
+
+      return {
+        tag,
+        text,
+        rect: rect ?? { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } },
+        attributes: {},
+        mcids,
+        children,
+      };
     };
 
+    const elements: PdfStructElement[] = [];
     const childCount = this.pdfiumModule.FPDF_StructTree_CountChildren(treePtr);
     for (let i = 0; i < childCount; i++) {
       const childPtr = this.pdfiumModule.FPDF_StructTree_GetChildAtIndex(treePtr, i);
       if (childPtr) {
-        walk(childPtr);
+        elements.push(buildElement(childPtr));
       }
     }
 
