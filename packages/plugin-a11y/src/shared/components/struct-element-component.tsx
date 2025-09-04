@@ -10,14 +10,16 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
   const Tag = (element.htmlTag || 'span') as any;
   //const Tag = ('span') as any;
 
-  const existingIds = element.mcids
+  const mcids = element.mcids.filter((mcid) => mcid >= 0);
+
+  const existingIds = mcids
     .map((mcid) => mcidMap.get(mcid))
     .filter((id): id is string => Boolean(id));
 
   let id: string | undefined;
-  if (existingIds.length === 0 && element.mcids.length) {
-    id = `mcid-${element.mcids[0]}`;
-    element.mcids.forEach((mcid) => mcidMap.set(mcid, id!));
+  if (existingIds.length === 0 && mcids.length) {
+    id = `mcid-${mcids[0]}`;
+    mcids.forEach((mcid) => mcidMap.set(mcid, id!));
   }
 
   const ariaProps = existingIds.length ? { 'aria-labelledby': existingIds.join(' ') } : {};
