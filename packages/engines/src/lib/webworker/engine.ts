@@ -564,7 +564,7 @@ export class WebWorkerEngine implements PdfEngine {
   }
 
   /**
-   * Walk the tagged structure tree and return a flat list of elements.
+   * Walk the tagged structure tree and return hierarchical elements.
    */
   getStructTree(doc: PdfDocumentObject, page: PdfPageObject) {
     this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
