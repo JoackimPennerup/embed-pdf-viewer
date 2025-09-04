@@ -1,5 +1,5 @@
 export { Fragment } from 'preact';
-export { useEffect, useRef, useState } from 'preact/hooks';
+export { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 export type { ComponentChildren as ReactNode } from 'preact';
 
 export type CSSProperties = import('preact').JSX.CSSProperties;
