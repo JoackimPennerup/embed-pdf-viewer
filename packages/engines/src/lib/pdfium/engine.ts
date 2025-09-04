@@ -7690,7 +7690,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const len = this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, 0, 0);
       let text = '';
       if (len > 0) {
-        const bufPtr = this.memoryManager.malloc(len);
+        const bufPtr = this.memoryManager.malloc(len * 2); // UTF-16 characters
         this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, bufPtr, len);
         text = this.pdfiumModule.pdfium.UTF16ToString(bufPtr);
         this.memoryManager.free(bufPtr);
