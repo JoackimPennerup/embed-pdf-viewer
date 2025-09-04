@@ -6,6 +6,7 @@ import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/react
 import { Scroller, ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/react';
 import { LoaderPluginPackage } from '@embedpdf/plugin-loader/react';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/react';
+import { A11yLayer, A11yPluginPackage } from '@embedpdf/plugin-a11y/react';
 import { TilingLayer, TilingPluginPackage } from '@embedpdf/plugin-tiling/react';
 import { MarqueeZoom, ZoomMode, ZoomPluginPackage } from '@embedpdf/plugin-zoom/react';
 import { SearchLayer, SearchPluginPackage } from '@embedpdf/plugin-search/react';
@@ -68,6 +69,7 @@ const plugins = [
   createPluginRegistration(ExportPluginPackage),
   createPluginRegistration(ThumbnailPluginPackage),
   createPluginRegistration(SelectionPluginPackage),
+  createPluginRegistration(A11yPluginPackage, { debug: true }), // overlay toggled via `debug`
 ];
 
 const drawerComponents: DrawerComponent[] = [
@@ -201,7 +203,9 @@ function App() {
                               <RenderLayer
                                 pageIndex={pageIndex}
                                 style={{ pointerEvents: 'none' }}
+                                aria-hidden='true'
                               />
+                              <A11yLayer pageIndex={pageIndex} scale={scale} />
                               <TilingLayer
                                 pageIndex={pageIndex}
                                 scale={scale}
