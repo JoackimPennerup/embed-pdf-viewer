@@ -8,7 +8,7 @@ interface Props {
 
 export function StructElementComponent({ element, scale, mcidMap }: Props) {
   const Tag = (element.htmlTag || 'span') as any;
-  //const Tag = ('span') as any;
+  // const Tag = ('span') as any;
 
   const mcids = element.mcids.filter((mcid) => mcid >= 0);
 
@@ -16,10 +16,12 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
     .map((mcid) => mcidMap.get(mcid))
     .filter((id): id is string => Boolean(id));
 
+  const newMcids = mcids.filter((mcid) => !mcidMap.has(mcid));
+
   let id: string | undefined;
-  if (existingIds.length === 0 && mcids.length) {
-    id = `mcid-${mcids[0]}`;
-    mcids.forEach((mcid) => mcidMap.set(mcid, id!));
+  if (newMcids.length) {
+    id = `mcid-${newMcids[0]}`;
+    newMcids.forEach((mcid) => mcidMap.set(mcid, id!));
   }
 
   const ariaProps = existingIds.length ? { 'aria-labelledby': existingIds.join(' ') } : {};
@@ -33,8 +35,14 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
   };
 
   return (
-    <Tag {...element.attributes} {...(id && { id })} {...ariaProps} style={style} data-pdftag={element.tag}>
-      {existingIds.length ? null : element.text}
+    <Tag
+      {...element.attributes}
+      {...(id && { id })}
+      {...ariaProps}
+      style={style}
+      data-pdftag={element.tag}
+    >
+      {newMcids.length ? element.text : null}
       {element.children.map((child, i) => (
         <StructElementComponent key={i} element={child} scale={scale} mcidMap={mcidMap} />
       ))}
