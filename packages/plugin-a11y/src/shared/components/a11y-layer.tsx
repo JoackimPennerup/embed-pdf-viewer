@@ -12,7 +12,7 @@ type Props = {
 export function A11yLayer({ pageIndex, scale }: Props) {
   const { provides } = useA11yCapability();
   const [elements, setElements] = useState<StructElementModel[]>([]);
-  const mcidMap = useMemo(() => new Map<number, string>(), []);
+  const mcidMap = useMemo(() => new Map<number, string>(), [pageIndex]);
 
   useEffect(() => {
     if (!provides) return;

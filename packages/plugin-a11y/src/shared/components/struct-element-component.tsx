@@ -11,17 +11,23 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
   // const Tag = ('span') as any;
 
   const mcids = element.mcids.filter((mcid) => mcid >= 0);
-
-  const existingIds = mcids
-    .map((mcid) => mcidMap.get(mcid))
-    .filter((id): id is string => Boolean(id));
-
   const hasText = element.text.trim().length > 0;
-  const newMcids = hasText ? mcids.filter((mcid) => !mcidMap.has(mcid)) : [];
 
+  const existingIds: string[] = [];
+  const newMcids: number[] = [];
   let id: string | undefined;
-  if (newMcids.length) {
-    id = `mcid-${newMcids[0]}`;
+
+  for (const mcid of mcids) {
+    const existingId = mcidMap.get(mcid);
+    if (existingId) {
+      existingIds.push(existingId);
+    } else if (hasText) {
+      newMcids.push(mcid);
+      if (!id) id = `mcid-${mcid}`;
+    }
+  }
+
+  if (id) {
     newMcids.forEach((mcid) => mcidMap.set(mcid, id!));
   }
 
