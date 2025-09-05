@@ -4,6 +4,7 @@ export interface StructElement {
   tag: string;
   htmlTag: string;
   text: string;
+  lang?: string;
   rect: Rect;
   attributes?: Record<string, string>;
   mcids: number[];

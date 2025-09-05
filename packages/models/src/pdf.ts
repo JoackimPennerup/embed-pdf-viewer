@@ -2139,6 +2139,10 @@ export interface PdfStructElement {
    */
   text: string;
   /**
+   * Language of the element, if specified
+   */
+  lang?: string;
+  /**
    * Bounding rectangle of the element in device coordinates
    */
   rect: Rect;

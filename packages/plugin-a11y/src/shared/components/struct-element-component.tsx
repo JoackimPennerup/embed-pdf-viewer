@@ -3,11 +3,18 @@ import type { StructElement as StructElementModel } from '@embedpdf/plugin-a11y'
 interface Props {
   element: StructElementModel;
   scale: number;
+  parentLang?: string;
 }
 
-export function StructElementComponent({ element, scale }: Props) {
+export function StructElementComponent({ element, scale, parentLang }: Props) {
   const Tag = (element.htmlTag || 'span') as any;
   const hasText = element.text.trim().length > 0;
+
+  const attrs: Record<string, string> = { ...(element.attributes || {}) };
+  if (element.lang && element.lang !== parentLang) {
+    attrs.lang = element.lang;
+  }
+  const nextLang = element.lang || parentLang;
 
   const style = {
     position: 'absolute' as const,
@@ -18,10 +25,10 @@ export function StructElementComponent({ element, scale }: Props) {
   };
 
   return (
-    <Tag {...element.attributes} style={style} data-pdftag={element.tag}>
+    <Tag {...attrs} style={style} data-pdftag={element.tag}>
       {hasText ? element.text : null}
       {element.children.map((child, i) => (
-        <StructElementComponent key={i} element={child} scale={scale} />
+        <StructElementComponent key={i} element={child} scale={scale} parentLang={nextLang} />
       ))}
     </Tag>
   );
