@@ -23,5 +23,5 @@ const TAG_MAP: Record<string, string> = {
 };
 
 export function mapPdfTagToHtml(tag: string): string {
-  return TAG_MAP[tag] ?? 'div';
+  return TAG_MAP[tag] ?? 'span';
 }
