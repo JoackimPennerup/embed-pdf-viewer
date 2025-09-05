@@ -40,6 +40,7 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
       tag: el.tag,
       htmlTag: mapPdfTagToHtml(el.tag),
       text: el.text ?? '',
+      language: el.language || el.lang,
       rect: el.rect,
       attributes: el.attributes || {},
       mcids: el.mcids || [],
