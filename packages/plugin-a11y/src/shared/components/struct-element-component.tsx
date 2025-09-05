@@ -16,7 +16,8 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
     .map((mcid) => mcidMap.get(mcid))
     .filter((id): id is string => Boolean(id));
 
-  const newMcids = mcids.filter((mcid) => !mcidMap.has(mcid));
+  const hasText = element.text.trim().length > 0;
+  const newMcids = hasText ? mcids.filter((mcid) => !mcidMap.has(mcid)) : [];
 
   let id: string | undefined;
   if (newMcids.length) {
@@ -42,7 +43,7 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
       style={style}
       data-pdftag={element.tag}
     >
-      {newMcids.length ? element.text : null}
+      {hasText && (id || mcids.length === 0) ? element.text : null}
       {element.children.map((child, i) => (
         <StructElementComponent key={i} element={child} scale={scale} mcidMap={mcidMap} />
       ))}
