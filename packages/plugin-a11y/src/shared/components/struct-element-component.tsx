@@ -14,7 +14,6 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
   const hasText = element.text.trim().length > 0;
 
   const existingIds: string[] = [];
-  const newMcids: number[] = [];
   let id: string | undefined;
 
   for (const mcid of mcids) {
@@ -22,13 +21,11 @@ export function StructElementComponent({ element, scale, mcidMap }: Props) {
     if (existingId) {
       existingIds.push(existingId);
     } else if (hasText) {
-      newMcids.push(mcid);
-      if (!id) id = `mcid-${mcid}`;
+      if (!id) {
+        id = `mcid-${mcid}`;
+      }
+      mcidMap.set(mcid, id);
     }
-  }
-
-  if (id) {
-    newMcids.forEach((mcid) => mcidMap.set(mcid, id!));
   }
 
   const ariaProps = existingIds.length ? { 'aria-labelledby': existingIds.join(' ') } : {};
