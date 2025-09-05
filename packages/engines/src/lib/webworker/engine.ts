@@ -22,6 +22,7 @@ import {
   PdfFileUrl,
   PdfGlyphObject,
   PdfPageGeometry,
+  PdfStructElement,
   PageTextSlice,
   AnnotationCreateContext,
   PdfEngineMethodArgs,
@@ -559,6 +560,18 @@ export class WebWorkerEngine implements PdfEngine {
     const request: ExecuteRequest = createRequest(requestId, 'getPageTextRects', [doc, page]);
     this.proxy(task, request);
 
+    return task;
+  }
+
+  /**
+   * Walk the tagged structure tree and return hierarchical elements.
+   */
+  getStructTree(doc: PdfDocumentObject, page: PdfPageObject) {
+    this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
+    const requestId = this.generateRequestId(doc.id);
+    const task = new WorkerTask<PdfStructElement[]>(this.worker, requestId);
+    const request: ExecuteRequest = createRequest(requestId, 'getStructTree', [doc, page]);
+    this.proxy(task, request);
     return task;
   }
 

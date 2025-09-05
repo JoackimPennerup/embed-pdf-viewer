@@ -70,6 +70,7 @@ import {
   TextContext,
   PdfGlyphObject,
   PdfPageGeometry,
+  PdfStructElement,
   PdfRun,
   toIntRect,
   Quad,
@@ -7659,6 +7660,182 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         error: error instanceof Error ? error.message : 'Unknown error during annotation removal',
       };
     }
+  }
+
+  /**
+   * Walk the tagged structure tree of a page and return a hierarchy of elements
+   * including tag name, text content, bounding rectangle and MCID references.
+   */
+  getStructTree(doc: PdfDocumentObject, page: PdfPageObject): PdfTask<PdfStructElement[]> {
+    this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
+
+    const ctx = this.cache.getContext(doc.id);
+    if (!ctx) {
+      return PdfTaskHelper.resolve<PdfStructElement[]>([]);
+    }
+
+    const pageCtx = ctx.acquirePage(page.index);
+    const textPagePtr = pageCtx.getTextPage();
+    const treePtr = this.pdfiumModule.FPDF_StructTree_GetForPage(pageCtx.pagePtr);
+
+    if (!treePtr) {
+      pageCtx.release();
+      return PdfTaskHelper.resolve<PdfStructElement[]>([]);
+    }
+
+    // Merge two rectangles into a bounding box that covers both.
+    const unionRect = (a: Rect, b: Rect): Rect => {
+      const x1 = Math.min(a.origin.x, b.origin.x);
+      const y1 = Math.min(a.origin.y, b.origin.y);
+      const x2 = Math.max(a.origin.x + a.size.width, b.origin.x + b.size.width);
+      const y2 = Math.max(a.origin.y + a.size.height, b.origin.y + b.size.height);
+      return {
+        origin: { x: x1, y: y1 },
+        size: { width: x2 - x1, height: y2 - y1 },
+      };
+    };
+
+    // Build a lookup of MCID -> text and bounding box by scanning page objects once.
+    const mcidMap = new Map<number, { text: string; rect: Rect | null }>();
+    const scanObject = (objPtr: number) => {
+      const type = this.pdfiumModule.FPDFPageObj_GetType(objPtr);
+      if (type === PdfPageObjectType.FORM) {
+        const count = this.pdfiumModule.FPDFFormObj_CountObjects(objPtr);
+        for (let i = 0; i < count; i++) {
+          const childPtr = this.pdfiumModule.FPDFFormObj_GetObject(objPtr, i);
+          scanObject(childPtr);
+        }
+        return;
+      }
+
+      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
+      if (mcid < 0 || type !== PdfPageObjectType.TEXT) {
+        return;
+      }
+
+      const len = this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, 0, 0);
+      let text = '';
+      if (len > 0) {
+        const bufPtr = this.memoryManager.malloc(len * 2); // UTF-16 characters
+        this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, bufPtr, len);
+        text = this.pdfiumModule.pdfium.UTF16ToString(bufPtr);
+        this.memoryManager.free(bufPtr);
+      }
+
+      const leftPtr = this.memoryManager.malloc(4);
+      const bottomPtr = this.memoryManager.malloc(4);
+      const rightPtr = this.memoryManager.malloc(4);
+      const topPtr = this.memoryManager.malloc(4);
+      this.pdfiumModule.FPDFPageObj_GetBounds(objPtr, leftPtr, bottomPtr, rightPtr, topPtr);
+      const left = this.pdfiumModule.pdfium.getValue(leftPtr, 'float');
+      const bottom = this.pdfiumModule.pdfium.getValue(bottomPtr, 'float');
+      const right = this.pdfiumModule.pdfium.getValue(rightPtr, 'float');
+      const top = this.pdfiumModule.pdfium.getValue(topPtr, 'float');
+      this.memoryManager.free(leftPtr);
+      this.memoryManager.free(bottomPtr);
+      this.memoryManager.free(rightPtr);
+      this.memoryManager.free(topPtr);
+
+      const deviceXPtr = this.memoryManager.malloc(4);
+      const deviceYPtr = this.memoryManager.malloc(4);
+      this.pdfiumModule.FPDF_PageToDevice(
+        pageCtx.pagePtr,
+        0,
+        0,
+        page.size.width,
+        page.size.height,
+        0,
+        left,
+        top,
+        deviceXPtr,
+        deviceYPtr,
+      );
+      const x = this.pdfiumModule.pdfium.getValue(deviceXPtr, 'i32');
+      const y = this.pdfiumModule.pdfium.getValue(deviceYPtr, 'i32');
+      this.memoryManager.free(deviceXPtr);
+      this.memoryManager.free(deviceYPtr);
+
+      const rect: Rect = {
+        origin: { x, y },
+        size: {
+          width: Math.ceil(Math.abs(right - left)),
+          height: Math.ceil(Math.abs(top - bottom)),
+        },
+      };
+      const existing = mcidMap.get(mcid);
+      if (existing) {
+        existing.text += text;
+        existing.rect = existing.rect ? unionRect(existing.rect, rect) : rect;
+      } else {
+        mcidMap.set(mcid, { text, rect });
+      }
+    };
+
+    const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
+    for (let i = 0; i < objectCount; i++) {
+      const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
+      scanObject(objPtr);
+    }
+
+    const buildElement = (elPtr: number): PdfStructElement => {
+      const tagLen = this.pdfiumModule.FPDF_StructElement_GetType(elPtr, 0, 0);
+      const tagPtr = this.memoryManager.malloc(tagLen);
+      this.pdfiumModule.FPDF_StructElement_GetType(elPtr, tagPtr, tagLen);
+      const tag = this.pdfiumModule.pdfium.UTF16ToString(tagPtr);
+      this.memoryManager.free(tagPtr);
+
+      const mcidCount = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdCount(elPtr);
+      const mcids: number[] = [];
+      let rect: Rect | null = null;
+      let text = '';
+      const seen = new Set<number>();
+      for (let i = 0; i < mcidCount; i++) {
+        const mcid = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdAtIndex(elPtr, i);
+        if (seen.has(mcid)) {
+          continue;
+        }
+        seen.add(mcid);
+        mcids.push(mcid);
+        const info = mcidMap.get(mcid);
+        if (info) {
+          text += info.text;
+          if (info.rect) {
+            rect = rect ? unionRect(rect, info.rect) : info.rect;
+          }
+        }
+      }
+
+      const childCount = this.pdfiumModule.FPDF_StructElement_CountChildren(elPtr);
+      const children: PdfStructElement[] = [];
+      for (let i = 0; i < childCount; i++) {
+        const childPtr = this.pdfiumModule.FPDF_StructElement_GetChildAtIndex(elPtr, i);
+        if (childPtr) {
+          children.push(buildElement(childPtr));
+        }
+      }
+
+      return {
+        tag,
+        text,
+        rect: rect ?? { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } },
+        attributes: {},
+        mcids,
+        children,
+      };
+    };
+
+    const elements: PdfStructElement[] = [];
+    const childCount = this.pdfiumModule.FPDF_StructTree_CountChildren(treePtr);
+    for (let i = 0; i < childCount; i++) {
+      const childPtr = this.pdfiumModule.FPDF_StructTree_GetChildAtIndex(treePtr, i);
+      if (childPtr) {
+        elements.push(buildElement(childPtr));
+      }
+    }
+
+    this.pdfiumModule.FPDF_StructTree_Close(treePtr);
+    pageCtx.release();
+    return PdfTaskHelper.resolve(elements);
   }
 
   /**

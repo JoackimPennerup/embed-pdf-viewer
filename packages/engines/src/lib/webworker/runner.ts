@@ -372,6 +372,9 @@ export class EngineRunner {
       case 'getPageTextRects':
         task = this.engine[name]!(...args);
         break;
+      case 'getStructTree':
+        task = this.engine[name]!(...args);
+        break;
       case 'searchAllPages':
         task = this.engine[name]!(...args);
         break;

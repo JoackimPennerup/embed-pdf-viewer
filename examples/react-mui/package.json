@@ -16,6 +16,7 @@
     "@embedpdf/plugin-scroll": "workspace:*",
     "@embedpdf/plugin-zoom": "workspace:*",
     "@embedpdf/plugin-render": "workspace:*",
+    "@embedpdf/plugin-a11y": "workspace:*",
     "@embedpdf/plugin-tiling": "workspace:*",
     "@embedpdf/plugin-search": "workspace:*",
     "@embedpdf/plugin-interaction-manager": "workspace:*",
