@@ -7675,16 +7675,20 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
     // Build a lookup of MCID -> text and bounding box by scanning page objects once.
     const mcidMap = new Map<number, { text: string; rect: Rect | null }>();
-    const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
-    for (let i = 0; i < objectCount; i++) {
-      const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
-      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
-      if (mcid < 0) {
-        continue;
-      }
+    const scanObject = (objPtr: number) => {
       const type = this.pdfiumModule.FPDFPageObj_GetType(objPtr);
-      if (type !== PdfPageObjectType.TEXT) {
-        continue;
+      if (type === PdfPageObjectType.FORM) {
+        const count = this.pdfiumModule.FPDFFormObj_CountObjects(objPtr);
+        for (let i = 0; i < count; i++) {
+          const childPtr = this.pdfiumModule.FPDFFormObj_GetObject(objPtr, i);
+          scanObject(childPtr);
+        }
+        return;
+      }
+
+      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
+      if (mcid < 0 || type !== PdfPageObjectType.TEXT) {
+        return;
       }
 
       const len = this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, 0, 0);
@@ -7743,6 +7747,12 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       } else {
         mcidMap.set(mcid, { text, rect });
       }
+    };
+
+    const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
+    for (let i = 0; i < objectCount; i++) {
+      const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
+      scanObject(objPtr);
     }
 
     const buildElement = (elPtr: number): PdfStructElement => {
