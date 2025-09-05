@@ -7762,6 +7762,15 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const tag = this.pdfiumModule.pdfium.UTF16ToString(tagPtr);
       this.memoryManager.free(tagPtr);
 
+      const langLen = this.pdfiumModule.FPDF_StructElement_GetLang(elPtr, 0, 0);
+      let lang: string | undefined;
+      if (langLen > 0) {
+        const langPtr = this.memoryManager.malloc(langLen);
+        this.pdfiumModule.FPDF_StructElement_GetLang(elPtr, langPtr, langLen);
+        lang = this.pdfiumModule.pdfium.UTF16ToString(langPtr);
+        this.memoryManager.free(langPtr);
+      }
+
       const mcidCount = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdCount(elPtr);
       const mcids: number[] = [];
       let rect: Rect | null = null;
@@ -7795,6 +7804,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       return {
         tag,
         text,
+        lang,
         rect: rect ?? { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } },
         attributes: {},
         mcids,
