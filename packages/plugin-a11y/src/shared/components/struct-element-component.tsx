@@ -10,6 +10,12 @@ export function StructElementComponent({ element, scale, parentLanguage }: Props
   const Tag = (element.htmlTag || 'span') as any;
   const hasText = element.text.trim().length > 0;
 
+  const attrs: Record<string, string> = { ...(element.attributes || {}) };
+  if (element.lang && element.lang !== parentLang) {
+    attrs.lang = element.lang;
+  }
+  const nextLang = element.lang || parentLang;
+
   const style = {
     position: 'absolute' as const,
     left: element.rect.origin.x * scale,
@@ -28,7 +34,7 @@ export function StructElementComponent({ element, scale, parentLanguage }: Props
     <Tag {...attrs} style={style} data-pdftag={element.tag}>
       {hasText ? element.text : null}
       {element.children.map((child, i) => (
-        <StructElementComponent
+      <StructElementComponent
           key={i}
           element={child}
           scale={scale}
