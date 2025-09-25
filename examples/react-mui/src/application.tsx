@@ -210,11 +210,13 @@ function App() {
                                 pageIndex={pageIndex}
                                 scale={scale}
                                 style={{ pointerEvents: 'none' }}
+                                aria-hidden='true'
                               />
                               <SearchLayer
                                 pageIndex={pageIndex}
                                 scale={scale}
                                 style={{ pointerEvents: 'none' }}
+                                aria-hidden='true'
                               />
                               <MarqueeZoom pageIndex={pageIndex} scale={scale} />
                               <SelectionLayer pageIndex={pageIndex} scale={scale} />

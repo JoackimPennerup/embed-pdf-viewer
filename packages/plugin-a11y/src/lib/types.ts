@@ -6,6 +6,7 @@ export interface StructElement {
   text: string;
   language?: string;
   rect: Rect;
+  language?: string;
   attributes?: Record<string, string>;
   mcids: number[];
   children: StructElement[];

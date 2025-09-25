@@ -42,6 +42,7 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
       text: el.text ?? '',
       lang: el.lang,
       rect: el.rect,
+      language: el.lang,
       attributes: el.attributes || {},
       mcids: el.mcids || [],
       children: (el.children || []).map(mapElement),

@@ -7,6 +7,7 @@ import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/vue';
 import { Scroller, ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/vue';
 import { TilingLayer, TilingPluginPackage } from '@embedpdf/plugin-tiling/vue';
+import { A11yLayer, A11yPluginPackage } from '@embedpdf/plugin-a11y/vue';
 import { SelectionLayer, SelectionPluginPackage } from '@embedpdf/plugin-selection/vue';
 import {
   InteractionManagerPluginPackage,
@@ -98,6 +99,7 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
                               :scale="page.scale"
                               class="pointer-events-none"
                             />
+                            <A11yLayer />
                             <SelectionLayer :page-index="page.pageIndex" :scale="page.scale" />
                           </PagePointerProvider>
                         </Rotate>
