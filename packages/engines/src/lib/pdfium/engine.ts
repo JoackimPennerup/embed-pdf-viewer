@@ -7769,6 +7769,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         this.pdfiumModule.FPDF_StructElement_GetLang(elPtr, langPtr, langLen);
         lang = this.pdfiumModule.pdfium.UTF16ToString(langPtr);
         this.memoryManager.free(langPtr);
+      } else {
+        // fallback on document language
       }
 
       const mcidCount = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdCount(elPtr);

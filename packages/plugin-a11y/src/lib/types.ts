@@ -4,7 +4,6 @@ export interface StructElement {
   tag: string;
   htmlTag: string;
   text: string;
-  language?: string;
   rect: Rect;
   language?: string;
   attributes?: Record<string, string>;
