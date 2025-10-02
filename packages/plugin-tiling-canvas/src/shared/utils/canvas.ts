@@ -5,49 +5,19 @@ export interface CanvasTileSource {
 
 export async function createCanvasTileSource(blob: Blob): Promise<CanvasTileSource> {
   const scope = getGlobalScope();
-
-  if (scope && typeof scope.createImageBitmap === 'function') {
-    const bitmap = await scope.createImageBitmap(blob);
-    return {
-      source: bitmap,
-      cleanup: () => {
-        if ('close' in bitmap) {
-          (bitmap as ImageBitmap).close();
-        }
-      },
-    };
+  if (!scope?.createImageBitmap) {
+    throw new Error('createImageBitmap is not available in this environment.');
   }
 
-  const url = URL.createObjectURL(blob);
-  try {
-    const image = await loadImage(url);
-    return {
-      source: image,
-      cleanup: () => {
-        URL.revokeObjectURL(url);
-      },
-    };
-  } catch (error) {
-    URL.revokeObjectURL(url);
-    throw error;
-  }
-}
-
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const scope = getGlobalScope();
-    const ImageCtor = scope?.Image;
-
-    if (!ImageCtor) {
-      reject(new Error('Image constructor is not available in this environment.'));
-      return;
-    }
-
-    const image = new ImageCtor();
-    image.src = url;
-    image.onload = () => resolve(image);
-    image.onerror = (event) => reject(event);
-  });
+  const bitmap = await scope.createImageBitmap(blob);
+  return {
+    source: bitmap,
+    cleanup: () => {
+      if ('close' in bitmap) {
+        (bitmap as ImageBitmap).close();
+      }
+    },
+  };
 }
 
 export function releaseCanvasTileSource(source: CanvasTileSource | undefined): void {
