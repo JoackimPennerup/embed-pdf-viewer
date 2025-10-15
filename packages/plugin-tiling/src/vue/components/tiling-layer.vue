@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import type { Tile } from '@embedpdf/plugin-tiling';
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { onBeforeUnmount, ref, shallowRef, watch, watchEffect } from 'vue';
 import type { StyleValue } from 'vue';
 
-import { useTilingCapability } from '../hooks';
-import TileImg from './tile-img.vue';
+import { createTilingCanvasController } from '../../shared/controllers/tiling-canvas';
+import { useTilingCapability, useTilingPlugin } from '../hooks';
 
 interface Props {
   pageIndex: number;
@@ -14,32 +13,69 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const tiles = ref<Tile[]>([]);
-const { provides: tilingProvides } = useTilingCapability();
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+const controller = shallowRef(createTilingCanvasController({ pageIndex: props.pageIndex }));
 
-let unsubscribe: (() => void) | undefined;
+const { provides: tilingCapability } = useTilingCapability();
+const { plugin: tilingPlugin } = useTilingPlugin();
 
-onMounted(() => {
-  if (tilingProvides.value) {
-    unsubscribe = tilingProvides.value.onTileRendering((tilesMap) => {
-      tiles.value = tilesMap[props.pageIndex] ?? [];
+watch(
+  () => props.pageIndex,
+  (nextPage, previousPage) => {
+    if (nextPage === previousPage) return;
+    const previous = controller.value;
+    const nextController = createTilingCanvasController({ pageIndex: nextPage });
+
+    controller.value = nextController;
+
+    nextController.setDependencies({
+      capability: tilingCapability.value,
+      plugin: tilingPlugin.value,
     });
-  }
+    nextController.setScale(props.scale);
+    if (canvasRef.value) {
+      nextController.setCanvas(canvasRef.value);
+    }
+
+    previous.destroy();
+  },
+);
+
+watchEffect(() => {
+  controller.value.setDependencies({
+    capability: tilingCapability.value,
+    plugin: tilingPlugin.value,
+  });
+});
+
+watchEffect(() => {
+  controller.value.setScale(props.scale);
+});
+
+watchEffect((onCleanup) => {
+  const instance = controller.value;
+  instance.setCanvas(canvasRef.value ?? null);
+  onCleanup(() => {
+    instance.setCanvas(null);
+  });
 });
 
 onBeforeUnmount(() => {
-  unsubscribe?.();
+  controller.value.destroy();
 });
+
+const canvasStyle = {
+  position: 'absolute',
+  inset: '0',
+  width: '100%',
+  height: '100%',
+  display: 'block',
+  pointerEvents: 'none',
+} as const;
 </script>
 
 <template>
-  <div :style="style" v-bind="$attrs">
-    <TileImg
-      v-for="tile in tiles"
-      :key="tile.id"
-      :pageIndex="pageIndex"
-      :tile="tile"
-      :scale="scale"
-    />
+  <div :style="[{ position: 'relative' }, style]" v-bind="$attrs">
+    <canvas ref="canvasRef" :style="canvasStyle" />
   </div>
 </template>
