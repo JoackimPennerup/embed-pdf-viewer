@@ -1,4 +1,4 @@
-import { useMemo, MouseEvent, TouchEvent } from '@framework';
+import { useMemo, MouseEvent, TouchEvent, JSX } from '@framework';
 import { Rect, LinePoints, LineEndings, PdfAnnotationBorderStyle } from '@embedpdf/models';
 import { patching } from '@embedpdf/plugin-annotation';
 
@@ -6,7 +6,7 @@ import { patching } from '@embedpdf/plugin-annotation';
 |* Types                                                            *|
 \* ---------------------------------------------------------------- */
 
-interface LineProps {
+export interface LineProps {
   /** interior colour */
   color?: string;
   /** 0 – 1 */
@@ -31,34 +31,64 @@ interface LineProps {
   onClick?: (e: MouseEvent<SVGElement> | TouchEvent<SVGElement>) => void;
   /** Whether the annotation is selected */
   isSelected: boolean;
+  /** Optional custom payload (not used here but preserved for compatibility) */
+  custom?: unknown;
+  /** Optional child renderer for overlays (e.g. measurement labels) */
+  children?: (data: LineRenderData) => JSX.Element | null;
+}
+
+export interface LineRenderData {
+  rect: Rect;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  midX: number;
+  midY: number;
+  angleRadians: number;
+  angleDegrees: number;
+  strokeWidth: number;
 }
 
 /**
  * Renders a PDF Line annotation as SVG (with arrow/butt endings).
  */
-export function Line({
-  color = 'transparent',
-  opacity = 1,
-  strokeWidth,
-  strokeColor = '#000000',
-  strokeStyle = PdfAnnotationBorderStyle.SOLID,
-  strokeDashArray,
-  rect,
-  linePoints,
-  lineEndings,
-  scale,
-  onClick,
-  isSelected,
-}: LineProps): JSX.Element {
+export function Line(props: LineProps): JSX.Element {
+  const {
+    color = 'transparent',
+    opacity = 1,
+    strokeWidth,
+    strokeColor = '#000000',
+    strokeStyle = PdfAnnotationBorderStyle.SOLID,
+    strokeDashArray,
+    rect,
+    linePoints,
+    lineEndings,
+    scale,
+    onClick,
+    isSelected,
+    children,
+  } = props;
   /* -------------------------------------------------------------- */
   /*  Localise the line within its own bounding box                 */
   /* -------------------------------------------------------------- */
-  const { x1, y1, x2, y2 } = useMemo(() => {
+  const geometry = useMemo(() => {
+    const x1 = linePoints.start.x - rect.origin.x;
+    const y1 = linePoints.start.y - rect.origin.y;
+    const x2 = linePoints.end.x - rect.origin.x;
+    const y2 = linePoints.end.y - rect.origin.y;
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    const angleRadians = Math.atan2(y2 - y1, x2 - x1);
     return {
-      x1: linePoints.start.x - rect.origin.x,
-      y1: linePoints.start.y - rect.origin.y,
-      x2: linePoints.end.x - rect.origin.x,
-      y2: linePoints.end.y - rect.origin.y,
+      x1,
+      y1,
+      x2,
+      y2,
+      midX,
+      midY,
+      angleRadians,
+      angleDegrees: (angleRadians * 180) / Math.PI,
     };
   }, [linePoints, rect]);
 
@@ -66,12 +96,31 @@ export function Line({
   /*  Arrow-head path data via shared factory                       */
   /* -------------------------------------------------------------- */
   const endings = useMemo(() => {
-    const angle = Math.atan2(y2 - y1, x2 - x1);
     return {
-      start: patching.createEnding(lineEndings?.start, strokeWidth, angle + Math.PI, x1, y1),
-      end: patching.createEnding(lineEndings?.end, strokeWidth, angle, x2, y2),
+      start: patching.createEnding(
+        lineEndings?.start,
+        strokeWidth,
+        geometry.angleRadians + Math.PI,
+        geometry.x1,
+        geometry.y1,
+      ),
+      end: patching.createEnding(
+        lineEndings?.end,
+        strokeWidth,
+        geometry.angleRadians,
+        geometry.x2,
+        geometry.y2,
+      ),
     };
-  }, [lineEndings, strokeWidth, x1, y1, x2, y2]);
+  }, [
+    geometry.angleRadians,
+    geometry.x1,
+    geometry.x2,
+    geometry.y1,
+    geometry.y2,
+    lineEndings,
+    strokeWidth,
+  ]);
 
   /* -------------------------------------------------------------- */
   /*  Absolute placement + scaling (same pattern as other shapes)   */
@@ -95,10 +144,10 @@ export function Line({
     >
       {/* Main line */}
       <line
-        x1={x1}
-        y1={y1}
-        x2={x2}
-        y2={y2}
+        x1={geometry.x1}
+        y1={geometry.y1}
+        x2={geometry.x2}
+        y2={geometry.y2}
         opacity={opacity}
         onPointerDown={onClick}
         onTouchStart={onClick}
@@ -153,6 +202,19 @@ export function Line({
           fill={endings.end.filled ? color : 'none'}
         />
       )}
+
+      {children?.({
+        rect,
+        x1: geometry.x1,
+        y1: geometry.y1,
+        x2: geometry.x2,
+        y2: geometry.y2,
+        midX: geometry.midX,
+        midY: geometry.midY,
+        angleRadians: geometry.angleRadians,
+        angleDegrees: geometry.angleDegrees,
+        strokeWidth,
+      })}
     </svg>
   );
 }

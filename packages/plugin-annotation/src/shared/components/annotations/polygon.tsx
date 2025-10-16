@@ -1,7 +1,7 @@
-import { useMemo, MouseEvent, TouchEvent } from '@framework';
+import { useMemo, MouseEvent, TouchEvent, JSX } from '@framework';
 import { Rect, Position, PdfAnnotationBorderStyle } from '@embedpdf/models';
 
-interface PolygonProps {
+export interface PolygonProps {
   rect: Rect;
   vertices: Position[];
   color?: string;
@@ -17,23 +17,34 @@ interface PolygonProps {
   // New optional props for preview rendering
   currentVertex?: Position;
   handleSize?: number;
+  custom?: unknown;
+  children?: (data: PolygonRenderData) => JSX.Element | null;
 }
 
-export function Polygon({
-  rect,
-  vertices,
-  color = 'transparent',
-  strokeColor = '#000000',
-  opacity = 1,
-  strokeWidth,
-  strokeStyle = PdfAnnotationBorderStyle.SOLID,
-  strokeDashArray,
-  scale,
-  isSelected,
-  onClick,
-  currentVertex, // A preview-only prop
-  handleSize = 14, // in CSS pixels
-}: PolygonProps): JSX.Element {
+export interface PolygonRenderData {
+  rect: Rect;
+  localPoints: Position[];
+  isPreviewing: boolean;
+  scale: number;
+}
+
+export function Polygon(props: PolygonProps): JSX.Element {
+  const {
+    rect,
+    vertices,
+    color = 'transparent',
+    strokeColor = '#000000',
+    opacity = 1,
+    strokeWidth,
+    strokeStyle = PdfAnnotationBorderStyle.SOLID,
+    strokeDashArray,
+    scale,
+    isSelected,
+    onClick,
+    currentVertex, // A preview-only prop
+    handleSize = 14, // in CSS pixels
+    children,
+  } = props;
   const allPoints = currentVertex ? [...vertices, currentVertex] : vertices;
 
   const localPts = useMemo(
@@ -53,7 +64,7 @@ export function Polygon({
     ).trim();
   }, [localPts, currentVertex]);
 
-  const isPreviewing = currentVertex && vertices.length > 0;
+  const isPreviewing = Boolean(currentVertex && vertices.length > 0);
 
   const width = rect.size.width * scale;
   const height = rect.size.height * scale;
@@ -114,6 +125,8 @@ export function Polygon({
           strokeWidth={strokeWidth / 2}
         />
       )}
+
+      {children?.({ rect, localPoints: localPts, isPreviewing, scale })}
     </svg>
   );
 }

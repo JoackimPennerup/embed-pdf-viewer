@@ -987,6 +987,25 @@ importers:
         specifier: ^5.0.0
         version: 5.8.2
 
+  packages/plugin-measurement:
+    dependencies:
+      '@embedpdf/core':
+        specifier: workspace:*
+        version: link:../core
+      '@embedpdf/models':
+        specifier: workspace:*
+        version: link:../models
+    devDependencies:
+      '@embedpdf/build':
+        specifier: workspace:*
+        version: link:../build
+      '@embedpdf/plugin-annotation':
+        specifier: workspace:*
+        version: link:../plugin-annotation
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/plugin-pan:
     dependencies:
       '@embedpdf/core':
