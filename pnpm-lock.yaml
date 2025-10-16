@@ -1486,6 +1486,9 @@ importers:
       '@embedpdf/pdfium':
         specifier: workspace:*
         version: link:../packages/pdfium
+      '@embedpdf/plugin-a11y':
+        specifier: workspace:*
+        version: link:../packages/plugin-a11y
       '@embedpdf/plugin-annotation':
         specifier: workspace:*
         version: link:../packages/plugin-annotation
