@@ -2,6 +2,10 @@
 
 ## 1.3.14
 
+### Patch Changes
+
+- Add AI redaction suggestion utilities, including a reusable sidebar component and hook for fetching suggestions from external services.
+
 ## 1.3.13
 
 ## 1.3.12
