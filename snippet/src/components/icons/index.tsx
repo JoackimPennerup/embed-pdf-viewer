@@ -65,6 +65,10 @@ import { RedactIcon } from './redact';
 import { IconComponent } from './types';
 import { RedactAreaIcon } from './redact-area';
 import { CheckIcon } from './check';
+import { MeasureCalibrateIcon } from './measure-calibrate';
+import { MeasureDistanceIcon } from './measure-distance';
+import { MeasureAreaIcon } from './measure-area';
+import { MeasurePerimeterIcon } from './measure-perimeter';
 
 export type Icons = {
   [key: string]: IconComponent;
@@ -137,4 +141,8 @@ export const icons: Icons = {
   redact: RedactIcon,
   redactArea: RedactAreaIcon,
   check: CheckIcon,
+  measureCalibrate: MeasureCalibrateIcon,
+  measureDistance: MeasureDistanceIcon,
+  measureArea: MeasureAreaIcon,
+  measurePerimeter: MeasurePerimeterIcon,
 };

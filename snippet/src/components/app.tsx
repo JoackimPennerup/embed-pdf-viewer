@@ -132,6 +132,7 @@ import {
   isHighlightTool,
   getToolDefaultsById,
 } from '@embedpdf/plugin-annotation/preact';
+import { MeasurementPluginPackage } from '@embedpdf/plugin-measurement/preact';
 import { LoadingIndicator } from './ui/loading-indicator';
 import { PrintPluginConfig, PrintPluginPackage } from '@embedpdf/plugin-print/preact';
 import {
@@ -922,6 +923,21 @@ export const menuItems: Record<string, MenuItem<State>> = {
       storeState.plugins.ui.header.toolsHeader.visible === true &&
       storeState.plugins.ui.header.toolsHeader.visibleChild === 'shapeTools',
   },
+  measure: {
+    id: 'measure',
+    label: 'Measure',
+    type: 'action',
+    action: (registry) => {
+      const ui = registry.getPlugin<UIPlugin>(UI_PLUGIN_ID)?.provides();
+
+      if (ui) {
+        ui.setHeaderVisible({ id: 'toolsHeader', visible: true, visibleChild: 'measurementTools' });
+      }
+    },
+    active: (storeState) =>
+      storeState.plugins.ui.header.toolsHeader.visible === true &&
+      storeState.plugins.ui.header.toolsHeader.visibleChild === 'measurementTools',
+  },
   redaction: {
     id: 'redaction',
     label: 'Redaction',
@@ -972,7 +988,7 @@ export const menuItems: Record<string, MenuItem<State>> = {
     label: 'More',
     icon: 'dots',
     type: 'menu',
-    children: ['view', 'annotate', 'shapes', 'redaction' /*'fillAndSign', 'form'*/],
+    children: ['view', 'annotate', 'shapes', 'measure', 'redaction' /*'fillAndSign', 'form'*/],
     active: (storeState) =>
       storeState.plugins.ui.commandMenu.commandMenu.activeCommand === 'tabOverflow',
   },
@@ -1001,6 +1017,15 @@ export const menuItems: Record<string, MenuItem<State>> = {
     children: ['circle', 'square', 'polygon', 'polyline', 'line', 'lineArrow'],
     active: (storeState) =>
       storeState.plugins.ui.commandMenu.commandMenu.activeCommand === 'shapeToolOverflow',
+  },
+  measurementToolOverflow: {
+    id: 'measurementToolOverflow',
+    label: 'More',
+    icon: 'dots',
+    type: 'menu',
+    children: ['manualCalibration', 'measureDistance', 'measureArea', 'measurePerimeter'],
+    active: (storeState) =>
+      storeState.plugins.ui.commandMenu.commandMenu.activeCommand === 'measurementToolOverflow',
   },
   nextPage: {
     id: 'nextPage',
@@ -1270,6 +1295,94 @@ export const menuItems: Record<string, MenuItem<State>> = {
       }
     },
     active: (storeState) => storeState.plugins.annotation.activeToolId === 'polygon',
+  },
+  manualCalibration: {
+    id: 'manualCalibration',
+    label: 'Calibrate',
+    type: 'action',
+    icon: 'measureCalibrate',
+    iconProps: (storeState) => ({
+      primaryColor:
+        getToolDefaultsById(storeState.plugins.annotation, 'manualCalibration')?.strokeColor ??
+        '#2E7D32',
+    }),
+    action: (registry, state) => {
+      const annotation = registry.getPlugin<AnnotationPlugin>(ANNOTATION_PLUGIN_ID)?.provides();
+      if (annotation) {
+        if (state.plugins.annotation.activeToolId === 'manualCalibration') {
+          annotation.setActiveTool(null);
+        } else {
+          annotation.setActiveTool('manualCalibration');
+        }
+      }
+    },
+    active: (storeState) => storeState.plugins.annotation.activeToolId === 'manualCalibration',
+  },
+  measureDistance: {
+    id: 'measureDistance',
+    label: 'Distance',
+    type: 'action',
+    icon: 'measureDistance',
+    iconProps: (storeState) => ({
+      primaryColor:
+        getToolDefaultsById(storeState.plugins.annotation, 'measureDistance')?.strokeColor ??
+        '#1E88E5',
+    }),
+    action: (registry, state) => {
+      const annotation = registry.getPlugin<AnnotationPlugin>(ANNOTATION_PLUGIN_ID)?.provides();
+      if (annotation) {
+        if (state.plugins.annotation.activeToolId === 'measureDistance') {
+          annotation.setActiveTool(null);
+        } else {
+          annotation.setActiveTool('measureDistance');
+        }
+      }
+    },
+    active: (storeState) => storeState.plugins.annotation.activeToolId === 'measureDistance',
+  },
+  measureArea: {
+    id: 'measureArea',
+    label: 'Area',
+    type: 'action',
+    icon: 'measureArea',
+    iconProps: (storeState) => ({
+      primaryColor:
+        getToolDefaultsById(storeState.plugins.annotation, 'measureArea')?.strokeColor ?? '#1565C0',
+      secondaryColor:
+        getToolDefaultsById(storeState.plugins.annotation, 'measureArea')?.color ?? 'rgba(21,101,192,0.2)',
+    }),
+    action: (registry, state) => {
+      const annotation = registry.getPlugin<AnnotationPlugin>(ANNOTATION_PLUGIN_ID)?.provides();
+      if (annotation) {
+        if (state.plugins.annotation.activeToolId === 'measureArea') {
+          annotation.setActiveTool(null);
+        } else {
+          annotation.setActiveTool('measureArea');
+        }
+      }
+    },
+    active: (storeState) => storeState.plugins.annotation.activeToolId === 'measureArea',
+  },
+  measurePerimeter: {
+    id: 'measurePerimeter',
+    label: 'Perimeter',
+    type: 'action',
+    icon: 'measurePerimeter',
+    iconProps: (storeState) => ({
+      primaryColor:
+        getToolDefaultsById(storeState.plugins.annotation, 'measurePerimeter')?.strokeColor ?? '#F4511E',
+    }),
+    action: (registry, state) => {
+      const annotation = registry.getPlugin<AnnotationPlugin>(ANNOTATION_PLUGIN_ID)?.provides();
+      if (annotation) {
+        if (state.plugins.annotation.activeToolId === 'measurePerimeter') {
+          annotation.setActiveTool(null);
+        } else {
+          annotation.setActiveTool('measurePerimeter');
+        }
+      }
+    },
+    active: (storeState) => storeState.plugins.annotation.activeToolId === 'measurePerimeter',
   },
   freeText: {
     id: 'freeText',
@@ -1899,6 +2012,62 @@ export const components: Record<string, UIComponentType<State>> = {
       iconProps: getIconProps(menuItems.lineArrow, storeState),
     }),
   },
+  calibrateButton: {
+    type: 'iconButton',
+    id: 'calibrateButton',
+    props: {
+      commandId: 'manualCalibration',
+      active: false,
+      label: 'Calibrate',
+    },
+    mapStateToProps: (storeState, ownProps) => ({
+      ...ownProps,
+      active: isActive(menuItems.manualCalibration, storeState),
+      iconProps: getIconProps(menuItems.manualCalibration, storeState),
+    }),
+  },
+  distanceButton: {
+    type: 'iconButton',
+    id: 'distanceButton',
+    props: {
+      commandId: 'measureDistance',
+      active: false,
+      label: 'Distance',
+    },
+    mapStateToProps: (storeState, ownProps) => ({
+      ...ownProps,
+      active: isActive(menuItems.measureDistance, storeState),
+      iconProps: getIconProps(menuItems.measureDistance, storeState),
+    }),
+  },
+  areaButton: {
+    type: 'iconButton',
+    id: 'areaButton',
+    props: {
+      commandId: 'measureArea',
+      active: false,
+      label: 'Area',
+    },
+    mapStateToProps: (storeState, ownProps) => ({
+      ...ownProps,
+      active: isActive(menuItems.measureArea, storeState),
+      iconProps: getIconProps(menuItems.measureArea, storeState),
+    }),
+  },
+  perimeterButton: {
+    type: 'iconButton',
+    id: 'perimeterButton',
+    props: {
+      commandId: 'measurePerimeter',
+      active: false,
+      label: 'Perimeter',
+    },
+    mapStateToProps: (storeState, ownProps) => ({
+      ...ownProps,
+      active: isActive(menuItems.measurePerimeter, storeState),
+      iconProps: getIconProps(menuItems.measurePerimeter, storeState),
+    }),
+  },
   polylineButton: {
     type: 'iconButton',
     id: 'polylineButton',
@@ -2269,6 +2438,19 @@ export const components: Record<string, UIComponentType<State>> = {
       active: isActive(menuItems.shapes, storeState),
     }),
   },
+  measureTab: {
+    type: 'tabButton',
+    id: 'measureTab',
+    props: {
+      label: 'Measure',
+      commandId: 'measure',
+      active: false,
+    },
+    mapStateToProps: (storeState, ownProps) => ({
+      ...ownProps,
+      active: isActive(menuItems.measure, storeState),
+    }),
+  },
   redactionTab: {
     type: 'tabButton',
     id: 'redactionTab',
@@ -2347,12 +2529,25 @@ export const components: Record<string, UIComponentType<State>> = {
       active: isActive(menuItems.shapeToolOverflow, storeState),
     }),
   },
+  measurementToolOverflowButton: {
+    type: 'iconButton',
+    id: 'measurementToolOverflowButton',
+    props: {
+      label: 'More',
+      commandId: 'measurementToolOverflow',
+      active: false,
+    },
+    mapStateToProps: (storeState, ownProps) => ({
+      ...ownProps,
+      active: isActive(menuItems.measurementToolOverflow, storeState),
+    }),
+  },
   selectButton: {
     type: 'selectButton',
     id: 'selectButton',
     props: {
       menuCommandId: 'tabOverflow',
-      commandIds: ['view', 'annotate', 'shapes', 'redaction'],
+      commandIds: ['view', 'annotate', 'shapes', 'measure', 'redaction'],
       activeCommandId: 'view',
       active: false,
     },
@@ -2372,10 +2567,11 @@ export const components: Record<string, UIComponentType<State>> = {
       { componentId: 'viewTab', priority: 1, className: 'hidden @min-[500px]:block' },
       { componentId: 'annotateTab', priority: 2, className: 'hidden @min-[800px]:block' },
       { componentId: 'shapesTab', priority: 3, className: 'hidden @min-[800px]:block' },
-      { componentId: 'redactionTab', priority: 4, className: 'hidden @min-[800px]:block' },
+      { componentId: 'measureTab', priority: 4, className: 'hidden @min-[800px]:block' },
+      { componentId: 'redactionTab', priority: 5, className: 'hidden @min-[800px]:block' },
       {
         componentId: 'tabOverflowButton',
-        priority: 5,
+        priority: 6,
         className: 'hidden @min-[500px]:block @min-[800px]:hidden',
       },
     ],
@@ -2526,6 +2722,29 @@ export const components: Record<string, UIComponentType<State>> = {
       gap: 10,
     },
   },
+  measurementTools: {
+    id: 'measurementTools',
+    type: 'groupedItems',
+    slots: [
+      { componentId: 'calibrateButton', priority: 0 },
+      { componentId: 'distanceButton', priority: 1 },
+      { componentId: 'areaButton', priority: 2, className: 'hidden @min-[520px]:block' },
+      { componentId: 'perimeterButton', priority: 3, className: 'hidden @min-[520px]:block' },
+      {
+        componentId: 'measurementToolOverflowButton',
+        priority: 4,
+        className: 'block @min-[520px]:hidden',
+      },
+      { componentId: 'divider1', priority: 5 },
+      { componentId: 'styleButton', priority: 6 },
+      { componentId: 'divider1', priority: 7 },
+      { componentId: 'undoButton', priority: 8 },
+      { componentId: 'redoButton', priority: 9 },
+    ],
+    props: {
+      gap: 10,
+    },
+  },
   redactionTools: {
     id: 'redactionTools',
     type: 'groupedItems',
@@ -2590,7 +2809,8 @@ export const components: Record<string, UIComponentType<State>> = {
     slots: [
       { componentId: 'annotationTools', priority: 0 },
       { componentId: 'shapeTools', priority: 1 },
-      { componentId: 'redactionTools', priority: 2 },
+      { componentId: 'measurementTools', priority: 2 },
+      { componentId: 'redactionTools', priority: 3 },
     ],
     getChildContext: (props) => ({
       direction:
@@ -2873,6 +3093,23 @@ export function PDFViewer({ config }: PDFViewerProps) {
           createPluginRegistration(TilingPluginPackage, pluginConfigs.tiling),
           createPluginRegistration(ThumbnailPluginPackage, pluginConfigs.thumbnail),
           createPluginRegistration(AnnotationPluginPackage),
+          createPluginRegistration(MeasurementPluginPackage, {
+            onCalibrationRequest: async ({ unit }) => {
+              const message = `Enter the real-world distance (${unit}) for the selected line`;
+              const response = globalThis.prompt?.(message, '');
+              if (response === null || response === undefined) {
+                return null;
+              }
+
+              const normalized = response.trim().replace(',', '.');
+              if (!normalized) {
+                return null;
+              }
+
+              const parsed = Number.parseFloat(normalized);
+              return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+            },
+          }),
           createPluginRegistration(PrintPluginPackage),
           createPluginRegistration(FullscreenPluginPackage),
           createPluginRegistration(BookmarkPluginPackage),
