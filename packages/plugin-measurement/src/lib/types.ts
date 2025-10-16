@@ -1,5 +1,9 @@
 import { BasePluginConfig, EventHook } from '@embedpdf/core';
-import { PdfLineAnnoObject, PdfPolygonAnnoObject } from '@embedpdf/models';
+import {
+  PdfLineAnnoObject,
+  PdfMeasurementDictionary,
+  PdfPolygonAnnoObject,
+} from '@embedpdf/models';
 
 export type MeasurementKind = 'distance' | 'area' | 'perimeter' | 'calibration';
 
@@ -28,6 +32,7 @@ export interface MeasurementDisplayData {
   distance?: MeasurementValue;
   area?: MeasurementValue;
   perimeter?: MeasurementValue;
+  pdfMeasure?: PdfMeasurementDictionary;
   lastUpdated: string;
 }
 

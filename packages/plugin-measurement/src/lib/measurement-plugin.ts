@@ -14,6 +14,7 @@ import {
   AnnotationEvent,
 } from '@embedpdf/plugin-annotation';
 
+import { buildPdfMeasureDictionary } from './pdf-measure';
 import {
   CalibrationRequest,
   MeasurementCapability,
@@ -369,6 +370,7 @@ export class MeasurementPlugin extends BasePlugin<MeasurementPluginConfig, Measu
         this.annotation.updateAnnotation(pageIndex, annotation.id, {
           custom: newCustom,
           contents: '',
+          measure: undefined,
         });
       }
       return;
@@ -389,6 +391,7 @@ export class MeasurementPlugin extends BasePlugin<MeasurementPluginConfig, Measu
     this.annotation.updateAnnotation(pageIndex, annotation.id, {
       custom: newCustom,
       contents: measurement.label,
+      measure: measurement.pdfMeasure,
     });
   }
 
@@ -534,6 +537,7 @@ export class MeasurementPlugin extends BasePlugin<MeasurementPluginConfig, Measu
         unit,
         formatted,
       },
+      pdfMeasure: this.buildPdfMeasure('distance'),
       lastUpdated: new Date().toISOString(),
     };
 
@@ -579,6 +583,7 @@ export class MeasurementPlugin extends BasePlugin<MeasurementPluginConfig, Measu
         unit: perimeterUnit,
         formatted: perimeterFormatted,
       },
+      pdfMeasure: this.buildPdfMeasure('area'),
       lastUpdated: new Date().toISOString(),
     };
 
@@ -610,6 +615,7 @@ export class MeasurementPlugin extends BasePlugin<MeasurementPluginConfig, Measu
         unit: perimeterUnit,
         formatted: perimeterFormatted,
       },
+      pdfMeasure: this.buildPdfMeasure('perimeter'),
       lastUpdated: new Date().toISOString(),
     };
 
@@ -693,6 +699,15 @@ export class MeasurementPlugin extends BasePlugin<MeasurementPluginConfig, Measu
       case 'perimeter':
         return this.formatPerimeter(value, unit, ctx);
     }
+  }
+
+  private buildPdfMeasure(kind: Exclude<MeasurementKind, 'calibration'>) {
+    return buildPdfMeasureDictionary({
+      unit: this.state.unit,
+      pointsPerUnit: this.state.pointsPerUnit,
+      precision: this.state.precision,
+      kind,
+    });
   }
 
   private defaultFormat(value: number, unit: string): string {

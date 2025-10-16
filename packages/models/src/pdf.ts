@@ -979,6 +979,72 @@ export interface PdfAnnotationObjectBase {
    * Custom data of the annotation
    */
   custom?: any;
+
+  /**
+   * Optional measurement dictionary mirroring Acrobat's `/Measure` entry.
+   *
+   * Consumers that need to persist measurement metadata in PDF files can
+   * serialise this structure into a `/Measure` dictionary when exporting.
+   */
+  measure?: PdfMeasurementDictionary;
+}
+
+/**
+ * Supported measurement value format names for Acrobat measurement dictionaries.
+ *
+ * @public
+ */
+export type PdfMeasurementFormat = 'D' | 'F' | 'R';
+
+/**
+ * Conversion entry describing how a measurement value should be displayed.
+ * Mirrors Acrobat's `/A`, `/D`, and `/X` array item structure.
+ *
+ * @public
+ */
+export interface PdfMeasurementConversion {
+  /** Measurement unit label shown to the user (`/U`). */
+  unit: string;
+
+  /** Conversion factor applied before display (`/C`). */
+  conversionFactor: number;
+
+  /** Precision denominator – typically powers of 10 (`/D`). */
+  precision: number;
+
+  /** Display format (`/F`). */
+  format: PdfMeasurementFormat;
+
+  /** Decimal separator override (`/RD`). */
+  decimalSeparator?: string;
+
+  /** Thousands separator override (`/RT`). */
+  thousandSeparator?: string;
+
+  /** Optional suffix string (`/SS`). */
+  suffix?: string;
+}
+
+/**
+ * Representation of a PDF measurement dictionary (`/Measure`).
+ *
+ * @public
+ */
+export interface PdfMeasurementDictionary {
+  /** Always set to `"Measure"`. */
+  type: 'Measure';
+
+  /** Optional human readable scale string (`/R`). */
+  scale?: string;
+
+  /** Distance conversion entries (stored under `/D`). */
+  distance?: PdfMeasurementConversion[];
+
+  /** Area conversion entries (stored under `/A`). */
+  area?: PdfMeasurementConversion[];
+
+  /** Cross axis conversion entries (stored under `/X`). */
+  cross?: PdfMeasurementConversion[];
 }
 
 /**
