@@ -16,7 +16,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { provides: printCapability } = usePrintCapability();
-const { currentPage, totalPages } = useScroll();
+const { state } = useScroll();
 
 // Dialog state
 type PageSelection = 'all' | 'current' | 'custom';
@@ -47,7 +47,7 @@ const handlePrint = async () => {
   let pageRange: string | undefined;
 
   if (selection.value === 'current') {
-    pageRange = String(currentPage.value);
+    pageRange = String(state.value.currentPage);
   } else if (selection.value === 'custom') {
     pageRange = customPages.value.trim() || undefined;
   }
@@ -93,7 +93,7 @@ const handlePrint = async () => {
             <v-label class="text-subtitle-2 font-weight-medium mb-2">Pages to print</v-label>
             <v-radio-group v-model="selection" density="comfortable">
               <v-radio label="All pages" value="all" />
-              <v-radio :label="`Current page (${currentPage})`" value="current" />
+              <v-radio :label="`Current page (${state.currentPage})`" value="current" />
               <v-radio label="Specify pages" value="custom" />
             </v-radio-group>
 
@@ -108,10 +108,10 @@ const handlePrint = async () => {
                 :disabled="selection !== 'custom'"
               />
               <div
-                v-if="customPages.trim() && totalPages > 0"
+                v-if="customPages.trim() && state.totalPages > 0"
                 class="text-caption text-medium-emphasis mt-1"
               >
-                Total pages in document: {{ totalPages }}
+                Total pages in document: {{ state.totalPages }}
               </div>
             </div>
           </div>

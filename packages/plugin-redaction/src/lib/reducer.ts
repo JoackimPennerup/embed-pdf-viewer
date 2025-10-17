@@ -1,4 +1,4 @@
-import { RedactionState } from './types';
+import { RedactionItem, RedactionState } from './types';
 import {
   RedactionAction,
   ADD_PENDING,
@@ -6,13 +6,21 @@ import {
   END_REDACTION,
   REMOVE_PENDING,
   START_REDACTION,
+  SET_ACTIVE_TYPE,
   SELECT_PENDING,
   DESELECT_PENDING,
 } from './actions';
 
+// Helper function to calculate total pending count
+const calculatePendingCount = (pending: Record<number, RedactionItem[]>): number => {
+  return Object.values(pending).reduce((total, items) => total + items.length, 0);
+};
+
 export const initialState: RedactionState = {
   isRedacting: false,
+  activeType: null,
   pending: {},
+  pendingCount: 0,
   selected: null,
 };
 
@@ -23,7 +31,7 @@ export const redactionReducer = (state = initialState, action: RedactionAction):
       for (const item of action.payload) {
         next[item.page] = (next[item.page] ?? []).concat(item);
       }
-      return { ...state, pending: next };
+      return { ...state, pending: next, pendingCount: calculatePendingCount(next) };
     }
 
     case REMOVE_PENDING: {
@@ -36,11 +44,16 @@ export const redactionReducer = (state = initialState, action: RedactionAction):
       const stillSelected =
         state.selected && !(state.selected.page === page && state.selected.id === id);
 
-      return { ...state, pending: next, selected: stillSelected ? state.selected : null };
+      return {
+        ...state,
+        pending: next,
+        pendingCount: calculatePendingCount(next),
+        selected: stillSelected ? state.selected : null,
+      };
     }
 
     case CLEAR_PENDING:
-      return { ...state, pending: {}, selected: null };
+      return { ...state, pending: {}, pendingCount: 0, selected: null };
 
     case SELECT_PENDING:
       return { ...state, selected: { page: action.payload.page, id: action.payload.id } };
@@ -49,9 +62,18 @@ export const redactionReducer = (state = initialState, action: RedactionAction):
       return { ...state, selected: null };
 
     case START_REDACTION:
-      return { ...state, isRedacting: true };
+      return { ...state, isRedacting: true, activeType: action.payload };
     case END_REDACTION:
-      return { ...state, pending: {}, selected: null, isRedacting: false };
+      return {
+        ...state,
+        pending: {},
+        pendingCount: 0,
+        selected: null,
+        isRedacting: false,
+        activeType: null,
+      };
+    case SET_ACTIVE_TYPE:
+      return { ...state, activeType: action.payload };
     default:
       return state;
   }

@@ -4,6 +4,7 @@ import {
   Rect,
   Rotation,
   scalePosition,
+  Size,
   transformPosition,
   transformRect,
 } from '@embedpdf/models';
@@ -29,7 +30,7 @@ export abstract class BaseScrollStrategy {
   }
 
   abstract createVirtualItems(pdfPageObject: PdfPageObjectWithRotatedSize[][]): VirtualItem[];
-  abstract getTotalContentSize(virtualItems: VirtualItem[]): { width: number; height: number };
+  abstract getTotalContentSize(virtualItems: VirtualItem[]): Size;
   protected abstract getScrollOffset(viewport: ViewportMetrics): number;
   protected abstract getClientSize(viewport: ViewportMetrics): number;
 
@@ -168,7 +169,11 @@ export abstract class BaseScrollStrategy {
       : mostVisiblePages.sort((a, b) => a.pageNumber - b.pageNumber)[0].pageNumber;
   }
 
-  private getRectLocationForPage(pageNumber: number, virtualItems: VirtualItem[]): Rect | null {
+  private getRectLocationForPage(
+    pageNumber: number,
+    virtualItems: VirtualItem[],
+    totalContentSize?: Size,
+  ): Rect | null {
     // Find the virtual item containing the page
     const item = virtualItems.find((item) => item.pageNumbers.includes(pageNumber));
     if (!item) return null;
@@ -177,9 +182,18 @@ export abstract class BaseScrollStrategy {
     const pageLayout = item.pageLayouts.find((layout) => layout.pageNumber === pageNumber);
     if (!pageLayout) return null;
 
+    // Calculate centering offset for items that are narrower than the maximum width
+    let centeringOffsetX = 0;
+    if (totalContentSize) {
+      const maxWidth = totalContentSize.width;
+      if (item.width < maxWidth) {
+        centeringOffsetX = (maxWidth - item.width) / 2;
+      }
+    }
+
     return {
       origin: {
-        x: item.x + pageLayout.x,
+        x: item.x + pageLayout.x + centeringOffsetX,
         y: item.y + pageLayout.y,
       },
       size: {
@@ -196,8 +210,8 @@ export abstract class BaseScrollStrategy {
     rotation: Rotation,
     pageCoordinates?: { x: number; y: number },
   ): Position | null {
-    // Find the virtual item containing the page
-    const pageRect = this.getRectLocationForPage(pageNumber, virtualItems);
+    const totalContentSize = this.getTotalContentSize(virtualItems);
+    const pageRect = this.getRectLocationForPage(pageNumber, virtualItems, totalContentSize);
     if (!pageRect) return null;
 
     const scaledBasePosition = scalePosition(pageRect.origin, scale);
@@ -236,7 +250,8 @@ export abstract class BaseScrollStrategy {
     rotation: Rotation,
     rect: Rect,
   ): Rect | null {
-    const pageRect = this.getRectLocationForPage(pageNumber, virtualItems);
+    const totalContentSize = this.getTotalContentSize(virtualItems);
+    const pageRect = this.getRectLocationForPage(pageNumber, virtualItems, totalContentSize);
     if (!pageRect) return null;
 
     const scaledBasePosition = scalePosition(pageRect.origin, scale);

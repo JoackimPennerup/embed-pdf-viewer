@@ -7,15 +7,13 @@ import {
   useSensors,
   PointerSensor,
   DragEndEvent,
+  DndContext,
+  closestCorners,
 } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import {
-  restrictToParentElement,
-  restrictToVerticalAxis,
-} from '@dnd-kit/modifiers'
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
+import { restrictToParentElement } from '@dnd-kit/modifiers'
 import { SortablePage } from './sortable-page'
 import { Button } from '../../button'
-import { DndContext, closestCenter } from '@dnd-kit/core'
 
 interface MergeViewProps {
   pages: MergeDocPage[]
@@ -32,59 +30,106 @@ export const MergeView: React.FC<MergeViewProps> = ({
   onMerge,
   isMerging,
 }) => {
-  // Set up sensors for drag and drop
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 10,
-      },
+      activationConstraint: { distance: 10 },
     }),
   )
 
   return (
-    <div className="rounded-md border bg-white p-4">
-      <div className="h-[460px] overflow-auto rounded-md bg-gray-50 p-3">
-        {pages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-gray-500">
-              Select pages from source documents to add here
-            </p>
+    <div className="group relative">
+      <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-700 opacity-10 blur transition duration-300 group-hover:opacity-20"></div>
+      <div className="relative overflow-hidden rounded-2xl bg-white shadow-md">
+        <div className="p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-700">
+              <svg
+                className="h-5 w-5 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">New Document</h3>
+              <p className="text-sm text-gray-600">
+                {pages.length} page{pages.length !== 1 ? 's' : ''} ready to
+                merge
+              </p>
+            </div>
           </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={onDragEnd}
-            modifiers={[restrictToParentElement, restrictToVerticalAxis]}
-          >
-            <SortableContext
-              items={pages.map((page) => page.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="grid grid-cols-2 gap-2">
-                {pages.map((page, index) => (
-                  <SortablePage
-                    key={page.id}
-                    page={page}
-                    index={index}
-                    isNew={true}
-                    onRemove={onRemovePage}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-      </div>
 
-      <div className="mt-3 flex justify-end">
-        <Button
-          onClick={onMerge}
-          className="rounded-md bg-green-500 px-3 py-1.5 text-white transition hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={pages.length === 0 || isMerging}
-        >
-          {isMerging ? 'Merging...' : 'Merge PDFs'}
-        </Button>
+          <div className="h-[460px] overflow-auto rounded-lg bg-gray-50 p-4">
+            {pages.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-200">
+                    <svg
+                      className="h-8 w-8 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
+                    </svg>
+                  </div>
+                  <h4 className="mb-2 text-lg font-medium text-gray-900">
+                    No pages selected
+                  </h4>
+                  <p className="text-gray-500">
+                    Select pages from source documents to add here
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                modifiers={[restrictToParentElement]}
+                onDragEnd={onDragEnd}
+              >
+                <SortableContext
+                  items={pages.map((p) => p.id)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    {pages.map((page, index) => (
+                      <SortablePage
+                        key={page.id}
+                        page={page}
+                        index={index}
+                        isNew
+                        onRemove={onRemovePage}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <Button
+              onClick={onMerge}
+              className="rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-8 py-3 text-lg font-medium text-white transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={pages.length === 0 || isMerging}
+            >
+              {isMerging ? 'Merging PDFs...' : 'Merge PDFs'}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )

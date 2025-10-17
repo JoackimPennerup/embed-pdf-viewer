@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import type { Rect } from '@embedpdf/models';
-import { useRedactionCapability } from '../hooks/use-redaction';
+import { useRedactionPlugin } from '../hooks/use-redaction';
 import Highlight from './highlight.vue';
 
 interface SelectionRedactProps {
@@ -31,16 +31,16 @@ interface SelectionRedactProps {
 
 const props = defineProps<SelectionRedactProps>();
 
-const { provides: redactionProvides } = useRedactionCapability();
+const { plugin: redactionPlugin } = useRedactionPlugin();
 const rects = ref<Rect[]>([]);
 const boundingRect = ref<Rect | null>(null);
 
 let unsubscribe: (() => void) | undefined;
 
 onMounted(() => {
-  if (!redactionProvides.value) return;
+  if (!redactionPlugin.value) return;
 
-  unsubscribe = redactionProvides.value.onRedactionSelectionChange((formattedSelection) => {
+  unsubscribe = redactionPlugin.value.onRedactionSelectionChange((formattedSelection) => {
     const selection = formattedSelection.find((s) => s.pageIndex === props.pageIndex);
     rects.value = selection?.segmentRects ?? [];
     boundingRect.value = selection?.rect ?? null;

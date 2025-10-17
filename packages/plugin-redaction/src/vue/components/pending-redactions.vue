@@ -45,10 +45,10 @@
         <div
           :style="{
             position: 'absolute',
-            left: `${item.boundingRect.origin.x * scale}px`,
-            top: `${item.boundingRect.origin.y * scale}px`,
-            width: `${item.boundingRect.size.width * scale}px`,
-            height: `${item.boundingRect.size.height * scale}px`,
+            left: `${item.rect.origin.x * scale}px`,
+            top: `${item.rect.origin.y * scale}px`,
+            width: `${item.rect.size.width * scale}px`,
+            height: `${item.rect.size.height * scale}px`,
             background: 'transparent',
             outline: selectedId === item.id ? `1px solid ${bboxStroke}` : 'none',
             outlineOffset: '2px',
@@ -57,7 +57,7 @@
           }"
         >
           <Highlight
-            :rect="item.boundingRect"
+            :rect="item.rect"
             :rects="item.rects"
             color="transparent"
             border="1px solid red"
@@ -68,12 +68,12 @@
         <CounterRotate
           :rect="{
             origin: {
-              x: item.boundingRect.origin.x * scale,
-              y: item.boundingRect.origin.y * scale,
+              x: item.rect.origin.x * scale,
+              y: item.rect.origin.y * scale,
             },
             size: {
-              width: item.boundingRect.size.width * scale,
-              height: item.boundingRect.size.height * scale,
+              width: item.rect.size.width * scale,
+              height: item.rect.size.height * scale,
             },
           }"
           :rotation="rotation"
@@ -134,7 +134,7 @@ onMounted(() => {
     items.value = map[props.pageIndex] ?? [];
   });
 
-  unsubscribeSelection = redaction.value.onSelectionChange((sel) => {
+  unsubscribeSelection = redaction.value.onSelectedChange((sel) => {
     selectedId.value = sel && sel.page === props.pageIndex ? sel.id : null;
   });
 });

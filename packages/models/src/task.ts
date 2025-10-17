@@ -87,16 +87,22 @@ export type TaskSettledResult<R, D> =
   | { status: 'aborted'; reason: D };
 
 export class TaskAbortedError<D> extends Error {
+  public readonly reason: D;
+
   constructor(reason: D) {
     super(`Task aborted: ${JSON.stringify(reason)}`);
     this.name = 'TaskAbortedError';
+    this.reason = reason;
   }
 }
 
 export class TaskRejectedError<D> extends Error {
+  public readonly reason: D;
+
   constructor(reason: D) {
     super(`Task rejected: ${JSON.stringify(reason)}`);
     this.name = 'TaskRejectedError';
+    this.reason = reason;
   }
 }
 

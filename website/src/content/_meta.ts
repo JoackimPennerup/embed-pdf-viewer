@@ -27,6 +27,13 @@ export default {
       timestamp: false,
     },
   },
+  ['react-pdf-viewer']: {
+    title: 'React PDF Viewer',
+    type: 'page',
+    theme: {
+      timestamp: false,
+    },
+  },
   docs: {
     title: 'Docs',
     type: 'page',

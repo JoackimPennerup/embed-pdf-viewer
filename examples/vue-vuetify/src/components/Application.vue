@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { usePdfiumEngine } from '@embedpdf/engines/vue';
 import { EmbedPDF } from '@embedpdf/core/vue';
-import { createPluginRegistration } from '@embedpdf/core';
+import { createPluginRegistration, PluginRegistry } from '@embedpdf/core';
 import { LoaderPluginPackage } from '@embedpdf/plugin-loader/vue';
 import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/vue';
 import { Scroller, ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue';
@@ -23,13 +23,25 @@ import { ExportPluginPackage } from '@embedpdf/plugin-export/vue';
 import { SpreadPluginPackage } from '@embedpdf/plugin-spread/vue';
 import { PrintPluginPackage } from '@embedpdf/plugin-print/vue';
 import { SearchPluginPackage, SearchLayer } from '@embedpdf/plugin-search/vue';
+import { ThumbnailPluginPackage } from '@embedpdf/plugin-thumbnail/vue';
+import { RedactionPluginPackage, RedactionLayer } from '@embedpdf/plugin-redaction/vue';
+import {
+  AnnotationPluginPackage,
+  AnnotationLayer,
+  AnnotationPlugin,
+} from '@embedpdf/plugin-annotation/vue';
+import type { AnnotationTool } from '@embedpdf/plugin-annotation/vue';
+import { PdfAnnotationSubtype } from '@embedpdf/models';
+import type { PdfStampAnnoObject } from '@embedpdf/models';
 
 import Toolbar from './Toolbar.vue';
 import DrawerProvider from './drawer-system/DrawerProvider.vue';
 import Drawer from './drawer-system/Drawer.vue';
 import Search from './Search.vue';
 import Sidebar from './Sidebar.vue';
-
+import RedactionSelectionMenu from './RedactionSelectionMenu.vue';
+import AnnotationSelectionMenu from './AnnotationSelectionMenu.vue';
+import { AllLogger, ConsoleLogger } from '@embedpdf/models';
 // Define drawer components
 const drawerComponents = [
   {
@@ -49,6 +61,25 @@ const drawerComponents = [
 ];
 
 const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine();
+
+const handleInitialized = async (registry: PluginRegistry) => {
+  const annotation = registry.getPlugin<AnnotationPlugin>('annotation')?.provides();
+  annotation?.addTool<AnnotationTool<PdfStampAnnoObject>>({
+    id: 'stampApproved',
+    name: 'Stamp Approved',
+    interaction: {
+      exclusive: false,
+      cursor: 'crosshair',
+    },
+    matchScore: () => 0,
+    defaults: {
+      type: PdfAnnotationSubtype.STAMP,
+      imageSrc:
+        'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Eo_circle_green_checkmark.svg/512px-Eo_circle_green_checkmark.svg.png',
+      imageSize: { width: 20, height: 20 },
+    },
+  });
+};
 </script>
 
 <template>
@@ -72,6 +103,7 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
   <div v-else-if="engine" class="fill-height">
     <EmbedPDF
       :engine="engine"
+      :on-initialized="handleInitialized"
       :plugins="[
         createPluginRegistration(LoaderPluginPackage, {
           loadingOptions: {
@@ -108,10 +140,16 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
         createPluginRegistration(ExportPluginPackage),
         createPluginRegistration(SpreadPluginPackage),
         createPluginRegistration(PrintPluginPackage),
+        createPluginRegistration(ThumbnailPluginPackage, {
+          imagePadding: 10,
+          labelHeight: 25,
+        }),
         createPluginRegistration(SearchPluginPackage, {
           flags: [],
           showAllResults: true,
         }),
+        createPluginRegistration(RedactionPluginPackage),
+        createPluginRegistration(AnnotationPluginPackage),
       ]"
     >
       <template #default="{ pluginsReady }">
@@ -143,7 +181,10 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
                     </div>
                     <Scroller v-else>
                       <template #default="{ page }">
-                        <Rotate :page-size="{ width: page.width, height: page.height }">
+                        <Rotate
+                          :key="page.document?.id"
+                          :page-size="{ width: page.width, height: page.height }"
+                        >
                           <PagePointerProvider
                             :page-index="page.pageIndex"
                             :page-width="page.width"
@@ -151,10 +192,6 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
                             :rotation="page.rotation"
                             :scale="page.scale"
                             class="position-absolute"
-                            :style="{
-                              width: page.width + 'px',
-                              height: page.height + 'px',
-                            }"
                           >
                             <RenderLayer
                               :page-index="page.pageIndex"
@@ -168,6 +205,40 @@ const { engine, isLoading: engineLoading, error: engineError } = usePdfiumEngine
                             <A11yLayer :page-index="page.pageIndex" :scale="page.scale"></A11yLayer>
                             <MarqueeZoom :page-index="page.pageIndex" :scale="page.scale" />
                             <SearchLayer :page-index="page.pageIndex" :scale="page.scale" />
+                            <AnnotationLayer
+                              :page-index="page.pageIndex"
+                              :scale="page.scale"
+                              :page-width="page.width"
+                              :page-height="page.height"
+                              :rotation="page.rotation"
+                            >
+                              <template
+                                #selection-menu="{ annotation, selected, menuWrapperProps, rect }"
+                              >
+                                <AnnotationSelectionMenu
+                                  v-if="selected"
+                                  :annotation="annotation"
+                                  :menu-wrapper-props="menuWrapperProps"
+                                  :rect="rect"
+                                />
+                              </template>
+                            </AnnotationLayer>
+                            <RedactionLayer
+                              :page-index="page.pageIndex"
+                              :scale="page.scale"
+                              :rotation="page.rotation"
+                            >
+                              <template
+                                #selection-menu="{ item, selected, menuWrapperProps, rect }"
+                              >
+                                <RedactionSelectionMenu
+                                  v-if="selected"
+                                  :item="item"
+                                  :menu-wrapper-props="menuWrapperProps"
+                                  :rect="rect"
+                                />
+                              </template>
+                            </RedactionLayer>
                             <SelectionLayer :page-index="page.pageIndex" :scale="page.scale" />
                           </PagePointerProvider>
                         </Rotate>

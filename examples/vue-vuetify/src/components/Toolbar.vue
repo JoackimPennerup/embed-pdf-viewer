@@ -24,6 +24,9 @@ const mainMenuOpen = ref(false);
 const pageSettingsMenuOpen = ref(false);
 const printDialogOpen = ref(false);
 
+// View/Annotate/Redact mode
+const mode = ref<'view' | 'annotate' | 'redact'>('view');
+
 const handleFullscreenToggle = () => {
   fullscreenProvider?.value?.toggleFullscreen();
   mainMenuOpen.value = false;
@@ -224,11 +227,24 @@ const handlePrintDialogClose = () => {
       </template>
     </v-tooltip>
 
+    <!-- Mode Tabs -->
+    <v-spacer></v-spacer>
+    <div class="mode-tabs-container">
+      <v-tabs v-model="mode" color="primary" density="compact" class="mode-tabs">
+        <v-tab value="view">View</v-tab>
+        <v-tab value="annotate">Annotate</v-tab>
+        <v-tab value="redact">Redact</v-tab>
+      </v-tabs>
+    </div>
     <v-spacer></v-spacer>
 
     <!-- Search Toggle -->
     <DrawerToggleButton component-id="search" />
   </v-app-bar>
+
+  <!-- Conditional Toolbars -->
+  <RedactToolbar v-if="mode === 'redact'" />
+  <AnnotationToolbar v-if="mode === 'annotate'" />
 
   <!-- Print Dialog -->
   <PrintDialog :open="printDialogOpen" @close="handlePrintDialogClose" />

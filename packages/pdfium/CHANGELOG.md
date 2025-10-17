@@ -1,5 +1,83 @@
 # @embedpdf/pdfium
 
+## 1.3.14
+
+## 1.3.13
+
+## 1.3.12
+
+## 1.3.11
+
+### Patch Changes
+
+- [`4ae4fc5`](https://github.com/embedpdf/embed-pdf-viewer/commit/4ae4fc5f8d417d0b18dbbdad10b00a8dd2dc796d) by [@bobsingor](https://github.com/bobsingor) – No changes, test workflow
+
+## 1.3.10
+
+### Patch Changes
+
+- [`5daa1b0`](https://github.com/embedpdf/embed-pdf-viewer/commit/5daa1b066243784097596dade60acaad5afa0899) by [@bobsingor](https://github.com/bobsingor) – No changes, test workflow
+
+## 1.3.9
+
+### Patch Changes
+
+- [`674f23e`](https://github.com/embedpdf/embed-pdf-viewer/commit/674f23e12aa83ed2bd296df4621782beca218adb) by [@bobsingor](https://github.com/bobsingor) – No changes, testing workflow
+
+## 1.3.8
+
+### Patch Changes
+
+- [#194](https://github.com/embedpdf/embed-pdf-viewer/pull/194) by [@bobsingor](https://github.com/bobsingor) – No changes, test new release workflow
+
+## 1.3.7
+
+### Patch Changes
+
+- [#192](https://github.com/embedpdf/embed-pdf-viewer/pull/192) by [@bobsingor](https://github.com/bobsingor) – Nothing really changed, testing new release workflow
+
+## 1.3.6
+
+## 1.3.5
+
+## 1.3.4
+
+## 1.3.3
+
+## 1.3.2
+
+### Patch Changes
+
+- [#181](https://github.com/embedpdf/embed-pdf-viewer/pull/181) by [@bobsingor](https://github.com/bobsingor) – Add new function EPDF_GetPageRotationByIndex
+
+## 1.3.1
+
+### Patch Changes
+
+- [#175](https://github.com/embedpdf/embed-pdf-viewer/pull/175) by [@bobsingor](https://github.com/bobsingor) – add addAttachment and removeAttachment functions to pdfium and the engine
+
+## 1.3.0
+
+### Patch Changes
+
+- [#170](https://github.com/embedpdf/embed-pdf-viewer/pull/170) by [@bobsingor](https://github.com/bobsingor) – Add ability to setBookmarks and deleteBookmarks
+
+- [#168](https://github.com/embedpdf/embed-pdf-viewer/pull/168) by [@Ludy87](https://github.com/Ludy87) – Add license fields to the package.json with the value MIT
+
+## 1.2.1
+
+## 1.2.0
+
+### Patch Changes
+
+- [#150](https://github.com/embedpdf/embed-pdf-viewer/pull/150) by [@bobsingor](https://github.com/bobsingor) – Add ability to get the language from the root, add function to PDFium EPDFCatalog_GetLanguage
+
+- [#153](https://github.com/embedpdf/embed-pdf-viewer/pull/153) by [@bobsingor](https://github.com/bobsingor) – Add new function to PDFium EPDFAnnot_UpdateAppearanceToRect to be able to update the appearance stream on resize of the stamp image annotation
+
+## 1.1.1
+
+## 1.1.0
+
 ## 1.0.26
 
 ### Patch Changes

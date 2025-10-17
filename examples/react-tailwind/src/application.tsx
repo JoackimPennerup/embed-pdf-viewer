@@ -81,27 +81,14 @@ export default function DocumentViewer() {
               <Viewport className="h-full w-full flex-1 select-none overflow-auto bg-gray-100">
                 {pluginsReady ? (
                   <Scroller
-                    renderPage={({
-                      pageIndex,
-                      scale,
-                      width,
-                      height,
-                      document,
-                      rotation,
-                      rotatedWidth,
-                      rotatedHeight,
-                    }) => (
+                    renderPage={({ pageIndex, scale, width, height, document, rotation }) => (
                       <Rotate key={document?.id} pageSize={{ width, height }}>
                         <PagePointerProvider
                           rotation={rotation}
                           scale={scale}
-                          pageWidth={rotatedWidth}
-                          pageHeight={rotatedHeight}
+                          pageWidth={width}
+                          pageHeight={height}
                           pageIndex={pageIndex}
-                          style={{
-                            width,
-                            height,
-                          }}
                         >
                           <RenderLayer pageIndex={pageIndex} className="pointer-events-none" />
                           <TilingLayer

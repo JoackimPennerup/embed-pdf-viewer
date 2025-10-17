@@ -76,8 +76,8 @@ export const VirtualScroller: React.FC<VirtualScrollerProps> = ({
 
   // Calculate item dimensions based on container width
   const itemDimensions = useMemo(() => {
-    // Account for grid-cols-2 and gap-2
-    const gridGap = 8 // 2rem
+    // Account for grid-cols-2 and gap-3
+    const gridGap = 12 // 3rem
     const itemWidth = containerWidth ? (containerWidth - gridGap) / 2 : 0
     // Use standard A4 aspect ratio (1:1.414)
     const itemHeight = itemWidth * 1.414
@@ -89,7 +89,7 @@ export const VirtualScroller: React.FC<VirtualScrollerProps> = ({
     const updateWidth = () => {
       if (containerRef.current) {
         // Account for padding
-        const padding = 16 // 2 * 8px (p-2)
+        const padding = 32 // 2 * 16px (p-4)
         setContainerWidth(containerRef.current.clientWidth - padding)
       }
     }
@@ -233,12 +233,12 @@ export const VirtualScroller: React.FC<VirtualScrollerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="h-[400px] overflow-auto rounded-md border border-gray-200 bg-[#f9fafb] p-2"
+      className="h-[400px] overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-4"
       onScroll={handleScroll}
     >
       <div className="relative w-full" style={{ height: `${totalHeight}px` }}>
         <div
-          className="absolute left-0 right-0 grid grid-cols-2 gap-2"
+          className="absolute left-0 right-0 grid grid-cols-2 gap-3"
           style={{
             transform: `translateY(${Math.floor(visibleRange.start / 2) * itemDimensions.height}px)`,
           }}
@@ -246,7 +246,11 @@ export const VirtualScroller: React.FC<VirtualScrollerProps> = ({
           {visibleItems1.map((page, idx) => (
             <div
               key={`${page.docId}-${page.pageIndex}`}
-              className={`relative border ${page.selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'} cursor-pointer rounded-md p-2`}
+              className={`group relative cursor-pointer rounded-lg border-2 p-3 transition-all duration-200 ${
+                page.selected
+                  ? 'border-purple-500 bg-purple-50 shadow-md'
+                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+              }`}
               onClick={() => handlePageClick(page)}
               style={{
                 // Force aspect ratio container
@@ -254,8 +258,14 @@ export const VirtualScroller: React.FC<VirtualScrollerProps> = ({
                 width: '100%',
               }}
             >
-              <div className="absolute right-4 top-2 z-10">
-                <span className="rounded-full bg-gray-200 px-1.5 text-xs">
+              <div className="absolute right-3 top-3 z-10">
+                <span
+                  className={`rounded-full px-2 py-1 text-xs font-medium ${
+                    page.selected
+                      ? 'bg-purple-200 text-purple-800'
+                      : 'bg-gray-200 text-gray-600'
+                  }`}
+                >
                   {page.pageIndex + 1}
                 </span>
               </div>
@@ -263,10 +273,10 @@ export const VirtualScroller: React.FC<VirtualScrollerProps> = ({
                 <img
                   src={page.thumbnail}
                   alt={`Page ${page.pageIndex + 1}`}
-                  className="h-full w-full rounded-md bg-gray-500 object-contain p-2"
+                  className="h-full w-full rounded-md object-contain p-2"
                 />
               ) : (
-                <div className="flex h-full w-full animate-pulse items-center justify-center bg-gray-100 text-sm text-gray-400">
+                <div className="flex h-full w-full animate-pulse items-center justify-center rounded-md bg-gray-100 text-sm text-gray-400">
                   Loading...
                 </div>
               )}

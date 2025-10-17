@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import type { Rect } from '@embedpdf/models';
-import { useSelectionCapability } from '../hooks/use-selection';
+import { useSelectionPlugin } from '../hooks/use-selection';
 
 interface Props {
   pageIndex: number;
@@ -42,7 +42,7 @@ const props = withDefaults(defineProps<Props>(), {
   background: 'rgba(33, 150, 243)',
 });
 
-const { provides: sel } = useSelectionCapability();
+const { plugin: sel } = useSelectionPlugin();
 const rects = ref<Rect[]>([]);
 const boundingRect = ref<Rect | null>(null);
 

@@ -1,5 +1,63 @@
 # @embedpdf/plugin-render
 
+## 1.3.14
+
+## 1.3.13
+
+### Patch Changes
+
+- [#209](https://github.com/embedpdf/embed-pdf-viewer/pull/209) by [@bobsingor](https://github.com/bobsingor) – Refactor Vue render-layer to improve image URL management
+
+## 1.3.12
+
+### Patch Changes
+
+- [#204](https://github.com/embedpdf/embed-pdf-viewer/pull/204) by [@bobsingor](https://github.com/bobsingor) – Fix refresh not working on Vue component after redaction
+
+## 1.3.11
+
+## 1.3.10
+
+## 1.3.9
+
+## 1.3.8
+
+## 1.3.7
+
+## 1.3.6
+
+## 1.3.5
+
+## 1.3.4
+
+## 1.3.3
+
+## 1.3.2
+
+## 1.3.1
+
+## 1.3.0
+
+### Patch Changes
+
+- [#168](https://github.com/embedpdf/embed-pdf-viewer/pull/168) by [@Ludy87](https://github.com/Ludy87) – Add license fields to the package.json with the value MIT
+
+## 1.2.1
+
+## 1.2.0
+
+## 1.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#141](https://github.com/embedpdf/embed-pdf-viewer/pull/141) by [@bobsingor](https://github.com/bobsingor) – Add `scale` prop and deprecate `scaleFactor` in `RenderLayer` (React & Vue).
+
+  - New `scale` prop is now the preferred way to control render scale.
+  - `scaleFactor` remains supported but is **deprecated** and will be removed in the next major release.
+  - Internally both implementations resolve `actualScale = scale ?? scaleFactor ?? 1` and pass it to the renderer.
+
 ## 1.0.26
 
 ## 1.0.25

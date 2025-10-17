@@ -1,15 +1,11 @@
-import { Rect } from '@embedpdf/models';
-import { TrackedAnnotation } from '@embedpdf/plugin-annotation';
-import { JSX } from '@framework';
-import { MenuWrapperProps } from '@embedpdf/utils/@framework';
+import { PdfAnnotationObject, Position } from '@embedpdf/models';
 
-export type ResizeDirection = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'none';
-
-export interface SelectionMenuProps {
-  annotation: TrackedAnnotation;
-  selected: boolean;
-  rect: Rect;
-  menuWrapperProps: MenuWrapperProps;
+/**
+ * Interface for vertex configuration - handles annotation-specific vertex logic
+ */
+export interface VertexConfig<T extends PdfAnnotationObject> {
+  /** Extract vertices from annotation - handles different vertex formats */
+  extractVertices: (annotation: T) => Position[];
+  /** Transform annotation when vertices change */
+  transformAnnotation: (annotation: T, vertices: Position[]) => Partial<T>;
 }
-
-export type SelectionMenu = (props: SelectionMenuProps) => JSX.Element;

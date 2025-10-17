@@ -1,1 +1,3 @@
-export { useState, useEffect, useRef } from 'preact/hooks';
+export { useState, useEffect, useRef, useContext } from 'preact/hooks';
+export { createContext } from 'preact';
+export type { ComponentChildren as ReactNode, JSX } from 'preact';

@@ -1,7 +1,7 @@
 import { createPluginRegistration } from '@embedpdf/core';
 import { EmbedPDF } from '@embedpdf/core/react';
 import { usePdfiumEngine } from '@embedpdf/engines/react';
-import { ConsoleLogger } from '@embedpdf/models';
+import { ConsoleLogger, PdfAnnotationSubtype, PdfStampAnnoObject } from '@embedpdf/models';
 import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/react';
 import { Scroller, ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/react';
 import { LoaderPluginPackage } from '@embedpdf/plugin-loader/react';
@@ -20,13 +20,20 @@ import { Rotate, RotatePluginPackage } from '@embedpdf/plugin-rotate/react';
 import { SpreadPluginPackage } from '@embedpdf/plugin-spread/react';
 import { FullscreenPluginPackage } from '@embedpdf/plugin-fullscreen/react';
 import { ExportPluginPackage } from '@embedpdf/plugin-export/react';
+import { RedactionLayer, RedactionPluginPackage } from '@embedpdf/plugin-redaction/react';
 import { ThumbnailPluginPackage } from '@embedpdf/plugin-thumbnail/react';
 import { SelectionPluginPackage } from '@embedpdf/plugin-selection/react';
 import { SelectionLayer } from '@embedpdf/plugin-selection/react';
+import {
+  AnnotationLayer,
+  AnnotationPlugin,
+  AnnotationPluginPackage,
+  AnnotationTool,
+} from '@embedpdf/plugin-annotation/react';
 
 import { CircularProgress, Box, Alert } from '@mui/material';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { PageControls } from './components/page-controls';
 import { Search } from './components/search';
@@ -34,6 +41,8 @@ import { Drawer, DrawerComponent, DrawerProvider } from './components/drawer-sys
 import { Sidebar } from './components/sidebar';
 import { Toolbar } from './components/toolbar';
 import { ViewSidebarReverseIcon } from './icons';
+import { AnnotationSelectionMenu } from './components/annotation-selection-menu';
+import { RedactionSelectionMenu } from './components/redaction-selection-menu';
 
 const plugins = [
   createPluginRegistration(LoaderPluginPackage, {
@@ -67,9 +76,13 @@ const plugins = [
   createPluginRegistration(SpreadPluginPackage),
   createPluginRegistration(FullscreenPluginPackage),
   createPluginRegistration(ExportPluginPackage),
-  createPluginRegistration(ThumbnailPluginPackage),
+  createPluginRegistration(ThumbnailPluginPackage, {
+    paddingY: 10,
+  }),
   createPluginRegistration(SelectionPluginPackage),
   createPluginRegistration(A11yPluginPackage, { debug: true }), // overlay toggled via `debug`
+  createPluginRegistration(AnnotationPluginPackage),
+  createPluginRegistration(RedactionPluginPackage),
 ];
 
 const drawerComponents: DrawerComponent[] = [
@@ -98,6 +111,7 @@ function App() {
   );
 
   const { engine, isLoading, error } = usePdfiumEngine(isDev ? { logger: consoleLogger } : {});
+  const popperContainerRef = useRef<HTMLDivElement>(null);
 
   if (error) {
     return (
@@ -133,7 +147,28 @@ function App() {
 
   return (
     <DrawerProvider components={drawerComponents}>
-      <EmbedPDF engine={engine} plugins={plugins}>
+      <EmbedPDF
+        engine={engine}
+        plugins={plugins}
+        onInitialized={async (registry) => {
+          const annotation = registry.getPlugin<AnnotationPlugin>('annotation')?.provides();
+          annotation?.addTool<AnnotationTool<PdfStampAnnoObject>>({
+            id: 'stampApproved',
+            name: 'Stamp Approved',
+            interaction: {
+              exclusive: false,
+              cursor: 'crosshair',
+            },
+            matchScore: () => 0,
+            defaults: {
+              type: PdfAnnotationSubtype.STAMP,
+              imageSrc:
+                'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Eo_circle_green_checkmark.svg/512px-Eo_circle_green_checkmark.svg.png',
+              imageSize: { width: 20, height: 20 },
+            },
+          });
+        }}
+      >
         {({ pluginsReady }) => (
           <Box
             sx={{
@@ -154,6 +189,7 @@ function App() {
 
               {/* Main Viewport */}
               <Box
+                ref={popperContainerRef}
                 sx={{
                   flex: '1 1 0', // grow / shrink, flex-basis 0
                   minWidth: 0, // allow shrinking inside flex row
@@ -195,10 +231,6 @@ function App() {
                               pageHeight={height}
                               rotation={rotation}
                               scale={scale}
-                              style={{
-                                width,
-                                height,
-                              }}
                             >
                               <RenderLayer
                                 pageIndex={pageIndex}
@@ -220,6 +252,40 @@ function App() {
                               />
                               <MarqueeZoom pageIndex={pageIndex} scale={scale} />
                               <SelectionLayer pageIndex={pageIndex} scale={scale} />
+                              <RedactionLayer
+                                pageIndex={pageIndex}
+                                scale={scale}
+                                rotation={rotation}
+                                selectionMenu={({ menuWrapperProps, selected, item }) => (
+                                  <>
+                                    {selected ? (
+                                      <RedactionSelectionMenu
+                                        menuWrapperProps={menuWrapperProps}
+                                        selected={item}
+                                        container={popperContainerRef.current}
+                                      />
+                                    ) : null}
+                                  </>
+                                )}
+                              />
+                              <AnnotationLayer
+                                pageIndex={pageIndex}
+                                scale={scale}
+                                pageWidth={width}
+                                pageHeight={height}
+                                rotation={rotation}
+                                selectionMenu={({ menuWrapperProps, selected, annotation }) => (
+                                  <>
+                                    {selected ? (
+                                      <AnnotationSelectionMenu
+                                        menuWrapperProps={menuWrapperProps}
+                                        selected={annotation}
+                                        container={popperContainerRef.current}
+                                      />
+                                    ) : null}
+                                  </>
+                                )}
+                              />
                             </PagePointerProvider>
                           </Rotate>
                         )}

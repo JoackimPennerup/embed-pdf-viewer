@@ -5,6 +5,7 @@ import { DocumentWithPages, DocumentPage } from './types'
 import { VirtualScroller } from './virtual-scroller'
 import { Button } from '../../button'
 import { PdfEngine } from '@embedpdf/models'
+import { X } from 'lucide-react'
 
 interface DocumentViewProps {
   documents: Record<string, DocumentWithPages>
@@ -41,71 +42,103 @@ export const DocumentView: React.FC<DocumentViewProps> = ({
 
   if (Object.keys(documents).length === 0) {
     return (
-      <div className="rounded-md border border-dashed bg-gray-50 p-8 text-center">
-        <p className="text-gray-500">Upload PDFs to get started</p>
+      <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-700">
+          <svg
+            className="h-6 w-6 text-white"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
+        <h3 className="mb-2 text-lg font-semibold text-gray-900">
+          Upload PDFs to get started
+        </h3>
+        <p className="text-gray-500">Add PDF files to begin merging</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {Object.entries(documents).map(([docId, { doc, pages }]) => (
-        <div key={docId} className="rounded-md border bg-white p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium">
-                Document {docId.substring(0, 6)} ({pages.length} pages)
-              </h3>
-              <Button
-                onClick={() => onCloseDocument(docId)}
-                className="p-1 text-gray-400 transition hover:text-gray-600"
-                title="Close document"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
+        <div key={docId} className="group relative">
+          <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-700 opacity-10 blur transition duration-300 group-hover:opacity-20"></div>
+          <div className="relative overflow-hidden rounded-2xl bg-white shadow-md">
+            <div className="p-6">
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-700">
+                    <svg
+                      className="h-5 w-5 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-lg font-bold text-gray-900">
+                      {doc.name || `Document ${docId.substring(0, 6)}`}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {pages.length} page{pages.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-3">
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleBulkSelection(docId, true)}
+                      className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      onClick={() => handleBulkSelection(docId, false)}
+                      className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={() => onCloseDocument(docId)}
+                    className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                    title="Close document"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+
+              <VirtualScroller
+                items={pages}
+                onUpdatePages={(updatedPages) =>
+                  onUpdatePages(docId, updatedPages)
+                }
+                engine={engine}
+                doc={doc}
+              />
+
+              <div className="mt-6 flex justify-end">
+                <Button
+                  onClick={onAddSelectedPages}
+                  className="rounded-lg bg-gradient-to-r from-purple-600 to-blue-700 px-6 py-3 font-medium text-white transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!pages.some((page) => page.selected)}
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </Button>
+                  Add Selected Pages
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => handleBulkSelection(docId, true)}
-                className="rounded bg-gray-100 px-2 py-1 text-sm text-gray-700 transition hover:bg-gray-200"
-              >
-                Select All
-              </Button>
-              <Button
-                onClick={() => handleBulkSelection(docId, false)}
-                className="rounded bg-gray-100 px-2 py-1 text-sm text-gray-700 transition hover:bg-gray-200"
-              >
-                Deselect All
-              </Button>
-            </div>
-          </div>
-
-          <VirtualScroller
-            items={pages}
-            onUpdatePages={(updatedPages) => onUpdatePages(docId, updatedPages)}
-            engine={engine}
-            doc={doc}
-          />
-
-          <div className="mt-3 flex justify-end">
-            <Button
-              onClick={onAddSelectedPages}
-              className="rounded-md bg-blue-500 px-3 py-1.5 text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!pages.some((page) => page.selected)}
-            >
-              Add Selected Pages
-            </Button>
           </div>
         </div>
       ))}

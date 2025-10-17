@@ -3,7 +3,7 @@ import { ScrollStrategy, ScrollerLayout, PageLayout } from '@embedpdf/plugin-scr
 import { useRegistry } from '@embedpdf/core/@framework';
 import { PdfDocumentObject, Rotation } from '@embedpdf/models';
 
-import { useScrollCapability, useScrollPlugin } from '../hooks';
+import { useScrollPlugin } from '../hooks';
 
 export interface RenderPageProps extends PageLayout {
   rotation: Rotation;
@@ -17,18 +17,17 @@ type ScrollerProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProps) {
-  const { provides: scrollProvides } = useScrollCapability();
   const { plugin: scrollPlugin } = useScrollPlugin();
   const { registry } = useRegistry();
   const [scrollerLayout, setScrollerLayout] = useState<ScrollerLayout | null>(
-    () => scrollProvides?.getScrollerLayout() ?? null,
+    () => scrollPlugin?.getScrollerLayout() ?? null,
   );
 
   useEffect(() => {
-    if (!scrollProvides) return;
+    if (!scrollPlugin) return;
 
-    return scrollProvides.onScrollerData(setScrollerLayout);
-  }, [scrollProvides]);
+    return scrollPlugin.onScrollerData(setScrollerLayout);
+  }, [scrollPlugin]);
 
   useEffect(() => {
     if (!scrollPlugin) return;

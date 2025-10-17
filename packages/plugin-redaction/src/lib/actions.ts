@@ -1,8 +1,9 @@
 import { Action } from '@embedpdf/core';
-import { RedactionItem } from './types';
+import { RedactionItem, RedactionMode } from './types';
 
 export const START_REDACTION = 'START_REDACTION';
 export const END_REDACTION = 'END_REDACTION';
+export const SET_ACTIVE_TYPE = 'SET_ACTIVE_TYPE';
 
 export const ADD_PENDING = 'ADD_PENDING';
 export const REMOVE_PENDING = 'REMOVE_PENDING';
@@ -13,9 +14,14 @@ export const DESELECT_PENDING = 'DESELECT_PENDING';
 
 export interface StartRedactionAction extends Action {
   type: typeof START_REDACTION;
+  payload: RedactionMode;
 }
 export interface EndRedactionAction extends Action {
   type: typeof END_REDACTION;
+}
+export interface SetActiveTypeAction extends Action {
+  type: typeof SET_ACTIVE_TYPE;
+  payload: RedactionMode | null;
 }
 
 export interface AddPendingAction extends Action {
@@ -41,6 +47,7 @@ export interface DeselectPendingAction extends Action {
 export type RedactionAction =
   | StartRedactionAction
   | EndRedactionAction
+  | SetActiveTypeAction
   | AddPendingAction
   | RemovePendingAction
   | ClearPendingAction
@@ -57,8 +64,15 @@ export const removePending = (page: number, id: string): RemovePendingAction => 
 });
 export const clearPending = (): ClearPendingAction => ({ type: CLEAR_PENDING });
 
-export const startRedaction = (): StartRedactionAction => ({ type: START_REDACTION });
+export const startRedaction = (mode: RedactionMode): StartRedactionAction => ({
+  type: START_REDACTION,
+  payload: mode,
+});
 export const endRedaction = (): EndRedactionAction => ({ type: END_REDACTION });
+export const setActiveType = (mode: RedactionMode | null): SetActiveTypeAction => ({
+  type: SET_ACTIVE_TYPE,
+  payload: mode,
+});
 
 export const selectPending = (page: number, id: string): SelectPendingAction => ({
   type: SELECT_PENDING,

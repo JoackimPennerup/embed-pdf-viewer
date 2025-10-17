@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from '@framework';
-import { Logger, PdfEngine } from '@embedpdf/models';
+import { ignore, Logger, PdfEngine } from '@embedpdf/models';
 
 const defaultWasmUrl = `https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@__PDFIUM_VERSION__/dist/pdfium.wasm`;
 
@@ -15,7 +15,7 @@ export function usePdfiumEngine(config?: UsePdfiumEngineProps) {
   const [engine, setEngine] = useState<PdfEngine | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const engineRef = useRef<{ destroy(): void } | null>(null);
+  const engineRef = useRef<PdfEngine | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,8 +28,16 @@ export function usePdfiumEngine(config?: UsePdfiumEngineProps) {
 
         const pdfEngine = await createPdfiumEngine(wasmUrl, logger);
         engineRef.current = pdfEngine;
-        setEngine(pdfEngine);
-        setLoading(false);
+        pdfEngine.initialize().wait(
+          () => {
+            setEngine(pdfEngine);
+            setLoading(false);
+          },
+          (e) => {
+            setError(new Error(e.reason.message));
+            setLoading(false);
+          },
+        );
       } catch (e) {
         if (!cancelled) {
           setError(e as Error);
@@ -40,8 +48,10 @@ export function usePdfiumEngine(config?: UsePdfiumEngineProps) {
 
     return () => {
       cancelled = true;
-      engineRef.current?.destroy();
-      engineRef.current = null;
+      engineRef.current?.closeAllDocuments?.().wait(() => {
+        engineRef.current?.destroy?.();
+        engineRef.current = null;
+      }, ignore);
     };
   }, [wasmUrl, worker, logger]);
 

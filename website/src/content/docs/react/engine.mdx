@@ -20,7 +20,7 @@ npm install @embedpdf/core @embedpdf/engines
 
 ## Primary Use Case: Powering the `<EmbedPDF>` Component
 
-Most of the time, you will simply get the `engine` from the hook and pass it to the `<EmbedPDF>` provider. The provider and its plugins will handle the rest, including initialization.
+Most of the time, you will simply get the `engine` from the hook and pass it to the `<EmbedPDF>` provider. The provider and its plugins will handle the rest.
 
 This pattern allows you to build your entire viewer without ever calling `engine.openDocument()` or `engine.renderPage()` yourself.
 
@@ -39,10 +39,47 @@ function MyViewer() {
     return <div>Error loading engine: {error.message}</div>;
   }
   
-  // The engine is ready. Pass it to the provider.
+  // The engine is ready and initialized. Pass it to the provider.
   return (
     <EmbedPDF engine={engine} plugins={/* ... your plugins ... */}>
       {/* ... your viewer components like <Viewport />, <Toolbar />, etc. ... */}
+    </EmbedPDF>
+  );
+}
+```
+
+## Alternative: Using the Engine Provider Directly
+
+For more advanced use cases or when you need to share the engine across multiple components, you can use the `PdfEngineProvider` directly:
+
+```tsx filename="AppWithProvider.tsx"
+import { usePdfiumEngine, PdfEngineProvider } from '@embedpdf/engines/react';
+import { EmbedPDF } from '@embedpdf/core/react';
+
+function App() {
+  const { engine, isLoading, error } = usePdfiumEngine();
+
+  return (
+    <PdfEngineProvider engine={engine} isLoading={isLoading} error={error}>
+      <MyViewerComponent />
+      <SomeOtherComponent />
+    </PdfEngineProvider>
+  );
+}
+
+function MyViewerComponent() {
+  const { engine, isLoading, error } = useEngineContext();
+  
+  if (isLoading) {
+    return <div>Loading PDF Engine...</div>;
+  }
+  if (error) {
+    return <div>Error loading engine: {error.message}</div>;
+  }
+
+  return (
+    <EmbedPDF engine={engine} plugins={/* ... your plugins ... */}>
+      {/* ... your viewer components ... */}
     </EmbedPDF>
   );
 }
@@ -52,29 +89,12 @@ function MyViewer() {
 
 For tasks that fall outside the plugin system—such as exporting a page image on a button click or performing a one-off text extraction—you can use the `engine` object directly.
 
-<Callout>
-**Note**: When using the engine directly, you must ensure it has been initialized. The `<EmbedPDF>` component handles this for you, but if you're using the engine standalone, you must call `engine.initialize()` yourself.
-</Callout>
-
 ```tsx
 import { usePdfiumEngine } from '@embedpdf/engines/react'
 import { ignore } from '@embedpdf/models'
-import { useEffect, useState } from 'react'
 
-export default function LoadingPDFiumExample() {
+export default function DirectEngineExample() {
   const { isLoading, error, engine } = usePdfiumEngine()
-  const [initialized, setInitialized] = useState(false)
-
-  useEffect(() => {
-    if (engine && !initialized) {
-      if (engine.initialize) {
-        const task = engine.initialize()
-        task.wait(setInitialized, ignore)
-      } else {
-        setInitialized(true)
-      }
-    }
-  }, [engine, initialized])
 
   if (error) {
     return (
@@ -84,7 +104,7 @@ export default function LoadingPDFiumExample() {
     )
   }
 
-  if (isLoading || !engine || !initialized) {
+  if (isLoading || !engine) {
     return (
       <div className="mt-3 rounded-md bg-yellow-50 p-4 text-sm font-medium text-yellow-800">
         Loading PDF engine...
@@ -92,10 +112,16 @@ export default function LoadingPDFiumExample() {
     )
   }
 
-  // Engine is ready to use
+  // Engine is ready to use directly
+  const handleDirectOperation = () => {
+    // Example: You can now use engine methods directly
+    console.log('Engine is ready for direct operations');
+  };
+
   return (
     <div className="mt-3 rounded-md bg-green-50 p-4 text-sm font-medium text-green-800">
-      Engine loaded successfully!
+      <p>Engine loaded successfully!</p>
+      <button onClick={handleDirectOperation}>Perform Direct Operation</button>
     </div>
   )
 }
@@ -105,10 +131,26 @@ export default function LoadingPDFiumExample() {
 
 The `usePdfiumEngine` hook accepts an optional configuration object and returns the engine's state.
 
+#### **Configuration Options**
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`wasmUrl`** | `string` | CDN URL | Custom WebAssembly file URL |
+| **`worker`** | `boolean` | `true` | Whether to run the engine in a Web Worker |
+| **`logger`** | `Logger` | `undefined` | Custom logger instance |
+
 #### **Return Values**
 
-  - **`engine`**: The `PdfEngine` instance, or `null` while loading.
-  - **`isLoading`**: A boolean that is `true` while the engine's WebAssembly is being downloaded and instantiated.
-  - **`error`**: An `Error` object if loading or initialization fails, otherwise `null`.
+- **`engine`**: The `PdfEngine` instance (already initialized), or `null` while loading.
+- **`isLoading`**: A boolean that is `true` while the engine's WebAssembly is being downloaded and instantiated.
+- **`error`**: An `Error` object if loading or initialization fails, otherwise `null`.
+
+#### **Provider Components**
+
+| Component | Description |
+| :--- | :--- |
+| **`PdfEngineProvider`** | Context provider for sharing engine state across components |
+| **`useEngineContext`** | Hook to access engine from provider context |
+| **`useEngine`** | Simplified hook that returns the engine or throws on error |
 
 For complete documentation of all available engine methods, see the **[@embedpdf/engines package documentation](/docs/engines/introduction)**.

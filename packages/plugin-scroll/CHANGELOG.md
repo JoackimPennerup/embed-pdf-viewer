@@ -1,5 +1,71 @@
 # @embedpdf/plugin-scroll
 
+## 1.3.14
+
+## 1.3.13
+
+## 1.3.12
+
+## 1.3.11
+
+## 1.3.10
+
+## 1.3.9
+
+## 1.3.8
+
+## 1.3.7
+
+## 1.3.6
+
+## 1.3.5
+
+### Patch Changes
+
+- [#187](https://github.com/embedpdf/embed-pdf-viewer/pull/187) by [@bobsingor](https://github.com/bobsingor) – Add isPageChanging event to the scrol plugin
+
+## 1.3.4
+
+## 1.3.3
+
+## 1.3.2
+
+## 1.3.1
+
+## 1.3.0
+
+### Patch Changes
+
+- [#168](https://github.com/embedpdf/embed-pdf-viewer/pull/168) by [@Ludy87](https://github.com/Ludy87) – Add license fields to the package.json with the value MIT
+
+## 1.2.1
+
+## 1.2.0
+
+## 1.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#141](https://github.com/embedpdf/embed-pdf-viewer/pull/141) by [@bobsingor](https://github.com/bobsingor) – Refactor scroller layout API and scroll helpers.
+
+  - **Moved scroller layout APIs from capability → plugin instance**
+    - Removed from `ScrollCapability`:
+      - `onScrollerData`
+      - `getScrollerLayout`
+    - Added to `ScrollPlugin`:
+      - `onScrollerData(callback): Unsubscribe`
+      - `getScrollerLayout(): ScrollerLayout`
+  - Exposed `ScrollBehavior` type (`'instant' | 'smooth' | 'auto'`) and plumbed through all scroll helpers.
+  - Bound capability methods to plugin instance:
+    - `scrollToPage`, `scrollToNextPage`, `scrollToPreviousPage` now call internal plugin methods (no behavior change for callers).
+  - Added auto-jump on first layout:
+    - If `initialPage` is set, we now scroll **instantly** to it after layout ready.
+  - Strategy/base types:
+    - `BaseScrollStrategy.getTotalContentSize()` now returns `Size` instead of `{ width; height }`.
+    - Page-rect computations now account for horizontal centering within `totalContentSize`.
+
 ## 1.0.26
 
 ## 1.0.25

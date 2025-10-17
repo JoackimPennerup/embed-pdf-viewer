@@ -5,18 +5,17 @@ import {
   RegisterMarqueeOnPageOptions,
   RedactionItem,
   SelectedRedaction,
+  RedactionMode,
+  RedactionEvent,
 } from './types';
 import {
   BasePlugin,
   createBehaviorEmitter,
   PluginRegistry,
-  refreshDocument,
   refreshPages,
   Unsubscribe,
 } from '@embedpdf/core';
 import {
-  ignore,
-  PdfEngine,
   PdfErrorCode,
   PdfErrorReason,
   PdfTask,
@@ -59,6 +58,8 @@ export class RedactionPlugin extends BasePlugin<
   private readonly redactionSelection$ = createBehaviorEmitter<FormattedSelection[]>();
   private readonly pending$ = createBehaviorEmitter<Record<number, RedactionItem[]>>();
   private readonly selected$ = createBehaviorEmitter<SelectedRedaction | null>();
+  private readonly state$ = createBehaviorEmitter<RedactionState>();
+  private readonly events$ = createBehaviorEmitter<RedactionEvent>();
 
   private readonly unsubscribeSelectionChange: Unsubscribe | undefined;
   private readonly unsubscribeEndSelection: Unsubscribe | undefined;
@@ -75,7 +76,7 @@ export class RedactionPlugin extends BasePlugin<
 
     if (this.interactionManagerCapability) {
       this.interactionManagerCapability.registerMode({
-        id: 'marqueeRedact',
+        id: RedactionMode.MarqueeRedact,
         scope: 'page',
         exclusive: true,
         cursor: 'crosshair',
@@ -84,17 +85,21 @@ export class RedactionPlugin extends BasePlugin<
 
     if (this.interactionManagerCapability && this.selectionCapability) {
       this.interactionManagerCapability.registerMode({
-        id: 'redactSelection',
+        id: RedactionMode.RedactSelection,
         scope: 'page',
         exclusive: false,
       });
-      this.selectionCapability.enableForMode('redactSelection');
+      this.selectionCapability.enableForMode(RedactionMode.RedactSelection);
     }
 
     this.unsubscribeModeChange = this.interactionManagerCapability?.onModeChange((state) => {
-      if (state.activeMode === 'redactSelection' || state.activeMode === 'marqueeRedact')
-        this.dispatch(startRedaction());
-      else this.dispatch(endRedaction());
+      if (state.activeMode === RedactionMode.RedactSelection) {
+        this.dispatch(startRedaction(RedactionMode.RedactSelection));
+      } else if (state.activeMode === RedactionMode.MarqueeRedact) {
+        this.dispatch(startRedaction(RedactionMode.MarqueeRedact));
+      } else {
+        this.dispatch(endRedaction());
+      }
     });
 
     this.unsubscribeSelectionChange = this.selectionCapability?.onSelectionChange(() => {
@@ -114,7 +119,7 @@ export class RedactionPlugin extends BasePlugin<
         id: uuidV4(),
         kind: 'text',
         page: s.pageIndex,
-        boundingRect: s.rect,
+        rect: s.rect,
         rects: s.segmentRects,
       }));
 
@@ -132,28 +137,32 @@ export class RedactionPlugin extends BasePlugin<
 
   protected buildCapability(): RedactionCapability {
     return {
-      onRedactionSelectionChange: this.redactionSelection$.on,
-
       queueCurrentSelectionAsPending: () => this.queueCurrentSelectionAsPending(),
 
       enableMarqueeRedact: () => this.enableMarqueeRedact(),
       toggleMarqueeRedact: () => this.toggleMarqueeRedact(),
       isMarqueeRedactActive: () =>
-        this.interactionManagerCapability?.getActiveMode() === 'marqueeRedact',
+        this.interactionManagerCapability?.getActiveMode() === RedactionMode.MarqueeRedact,
 
       enableRedactSelection: () => this.enableRedactSelection(),
       toggleRedactSelection: () => this.toggleRedactSelection(),
       isRedactSelectionActive: () =>
-        this.interactionManagerCapability?.getActiveMode() === 'redactSelection',
+        this.interactionManagerCapability?.getActiveMode() === RedactionMode.RedactSelection,
 
-      onPendingChange: this.pending$.on,
+      addPending: (items) => {
+        this.dispatch(addPending(items));
+        this.pending$.emit(this.state.pending);
+        this.events$.emit({ type: 'add', items });
+      },
       removePending: (page, id) => {
         this.dispatch(removePending(page, id));
         this.pending$.emit(this.state.pending);
+        this.events$.emit({ type: 'remove', page, id });
       },
       clearPending: () => {
         this.dispatch(clearPending());
         this.pending$.emit(this.state.pending);
+        this.events$.emit({ type: 'clear' });
       },
       commitAllPending: () => this.commitAllPending(),
       commitPending: (page, id) => this.commitPendingOne(page, id),
@@ -161,12 +170,20 @@ export class RedactionPlugin extends BasePlugin<
       endRedaction: () => this.endRedaction(),
       startRedaction: () => this.startRedaction(),
 
-      onSelectionChange: this.selected$.on,
       selectPending: (page, id) => this.selectPending(page, id),
       deselectPending: () => this.deselectPending(),
 
-      registerMarqueeOnPage: (opts) => this.registerMarqueeOnPage(opts),
+      onSelectedChange: this.selected$.on,
+      onRedactionEvent: this.events$.on,
+      onStateChange: this.state$.on,
+      onPendingChange: this.pending$.on,
     };
+  }
+
+  public onRedactionSelectionChange(
+    callback: (formattedSelection: FormattedSelection[]) => void,
+  ): Unsubscribe {
+    return this.redactionSelection$.on(callback);
   }
 
   private selectPending(page: number, id: string) {
@@ -180,25 +197,25 @@ export class RedactionPlugin extends BasePlugin<
   }
 
   private enableRedactSelection() {
-    this.interactionManagerCapability?.activate('redactSelection');
+    this.interactionManagerCapability?.activate(RedactionMode.RedactSelection);
   }
   private toggleRedactSelection() {
-    if (this.interactionManagerCapability?.getActiveMode() === 'redactSelection')
+    if (this.interactionManagerCapability?.getActiveMode() === RedactionMode.RedactSelection)
       this.interactionManagerCapability?.activateDefaultMode();
-    else this.interactionManagerCapability?.activate('redactSelection');
+    else this.interactionManagerCapability?.activate(RedactionMode.RedactSelection);
   }
 
   private enableMarqueeRedact() {
-    this.interactionManagerCapability?.activate('marqueeRedact');
+    this.interactionManagerCapability?.activate(RedactionMode.MarqueeRedact);
   }
   private toggleMarqueeRedact() {
-    if (this.interactionManagerCapability?.getActiveMode() === 'marqueeRedact')
+    if (this.interactionManagerCapability?.getActiveMode() === RedactionMode.MarqueeRedact)
       this.interactionManagerCapability?.activateDefaultMode();
-    else this.interactionManagerCapability?.activate('marqueeRedact');
+    else this.interactionManagerCapability?.activate(RedactionMode.MarqueeRedact);
   }
 
   private startRedaction() {
-    this.interactionManagerCapability?.activate('redactSelection');
+    this.interactionManagerCapability?.activate(RedactionMode.RedactSelection);
   }
   private endRedaction() {
     this.interactionManagerCapability?.activateDefaultMode();
@@ -260,7 +277,7 @@ export class RedactionPlugin extends BasePlugin<
     });
 
     const off2 = this.interactionManagerCapability.registerHandlers({
-      modeId: 'marqueeRedact',
+      modeId: RedactionMode.MarqueeRedact,
       handlers,
       pageIndex: opts.pageIndex,
     });
@@ -291,7 +308,7 @@ export class RedactionPlugin extends BasePlugin<
       id,
       kind: 'text',
       page: s.pageIndex,
-      boundingRect: s.rect,
+      rect: s.rect,
       rects: s.segmentRects,
     }));
 
@@ -332,9 +349,13 @@ export class RedactionPlugin extends BasePlugin<
           this.dispatch(removePending(page, id));
           this.pending$.emit(this.state.pending);
           this.dispatchCoreAction(refreshPages([page]));
+          this.events$.emit({ type: 'commit', success: true });
           task.resolve(true);
         },
-        () => task.reject({ code: PdfErrorCode.Unknown, message: 'Failed to commit redactions' }),
+        (error) => {
+          this.events$.emit({ type: 'commit', success: false, error: error.reason });
+          task.reject({ code: PdfErrorCode.Unknown, message: 'Failed to commit redactions' });
+        },
       );
 
     return task;
@@ -379,9 +400,13 @@ export class RedactionPlugin extends BasePlugin<
         this.dispatch(clearPending());
         this.dispatchCoreAction(refreshPages(pagesToRefresh));
         this.pending$.emit(this.state.pending);
+        this.events$.emit({ type: 'commit', success: true });
         task.resolve(true);
       },
-      () => task.reject({ code: PdfErrorCode.Unknown, message: 'Failed to commit redactions' }),
+      (error) => {
+        this.events$.emit({ type: 'commit', success: false, error: error.reason });
+        task.reject({ code: PdfErrorCode.Unknown, message: 'Failed to commit redactions' });
+      },
     );
 
     return task;
@@ -391,11 +416,14 @@ export class RedactionPlugin extends BasePlugin<
     // keep external listeners in sync
     this.pending$.emit(newState.pending);
     this.selected$.emit(newState.selected);
+    this.state$.emit(newState);
   }
 
   async destroy(): Promise<void> {
     this.redactionSelection$.clear();
     this.pending$.clear();
+    this.state$.clear();
+    this.events$.clear();
 
     this.unsubscribeSelectionChange?.();
     this.unsubscribeEndSelection?.();

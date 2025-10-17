@@ -1,5 +1,58 @@
 # @embedpdf/core
 
+## 1.3.14
+
+## 1.3.13
+
+## 1.3.12
+
+## 1.3.11
+
+## 1.3.10
+
+## 1.3.9
+
+## 1.3.8
+
+## 1.3.7
+
+## 1.3.6
+
+## 1.3.5
+
+## 1.3.4
+
+## 1.3.3
+
+## 1.3.2
+
+## 1.3.1
+
+## 1.3.0
+
+### Patch Changes
+
+- [#168](https://github.com/embedpdf/embed-pdf-viewer/pull/168) by [@Ludy87](https://github.com/Ludy87) – Add license fields to the package.json with the value MIT
+
+## 1.2.1
+
+## 1.2.0
+
+## 1.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#141](https://github.com/embedpdf/embed-pdf-viewer/pull/141) by [@bobsingor](https://github.com/bobsingor) – Refactored action dispatch handling in `BasePlugin`:
+
+  - Renamed `debouncedDispatch` to **`cooldownDispatch`**, which now executes immediately if the cooldown has expired and blocks rapid repeated calls.
+  - Introduced a new **`debouncedDispatch`** method that provides true debouncing: waits until no calls occur for the specified time before dispatching.
+  - Added **`cancelDebouncedDispatch`** to cancel pending debounced actions.
+  - Added internal `debouncedTimeouts` tracking and ensured all timeouts are cleared on `destroy`.
+
+  This improves clarity and provides both cooldown and debounce semantics for action dispatching.
+
 ## 1.0.26
 
 ## 1.0.25

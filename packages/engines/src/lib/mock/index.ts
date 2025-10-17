@@ -37,6 +37,8 @@ import {
   PdfMetadataObject,
   PdfTask,
   PdfPrintOptions,
+  PdfTrappedStatus,
+  PdfAddAttachmentParams,
 } from '@embedpdf/models';
 
 /**
@@ -64,6 +66,7 @@ export function createMockPdfEngine(partialEngine?: Partial<PdfEngine>): PdfEngi
         creator: 'creator',
         creationDate: new Date(),
         modificationDate: new Date(),
+        trapped: PdfTrappedStatus.NotSet,
       };
       return PdfTaskHelper.resolve(metadata);
     },
@@ -129,6 +132,12 @@ export function createMockPdfEngine(partialEngine?: Partial<PdfEngine>): PdfEngi
         bookmarks,
       });
     },
+    setBookmarks: jest.fn((doc: PdfDocumentObject, payload: PdfBookmarkObject[]) => {
+      return PdfTaskHelper.resolve(true);
+    }),
+    deleteBookmarks: jest.fn((doc: PdfDocumentObject) => {
+      return PdfTaskHelper.resolve(true);
+    }),
     renderPage: jest.fn(
       (doc: PdfDocumentObject, page: PdfPageObject, options?: PdfRenderPageOptions) => {
         const { scaleFactor = 1, rotation = Rotation.Degree0, dpr = 1 } = options ?? {};
@@ -276,6 +285,9 @@ export function createMockPdfEngine(partialEngine?: Partial<PdfEngine>): PdfEngi
     closeDocument: (pdf: PdfDocumentObject) => {
       return PdfTaskHelper.resolve(true);
     },
+    closeAllDocuments: () => {
+      return PdfTaskHelper.resolve(true);
+    },
     saveAsCopy: (pdf: PdfDocumentObject) => {
       return PdfTaskHelper.resolve(new ArrayBuffer(0));
     },
@@ -362,6 +374,12 @@ export function createMockPdfEngine(partialEngine?: Partial<PdfEngine>): PdfEngi
     getAttachments: (doc: PdfDocumentObject) => {
       return PdfTaskHelper.resolve([] as PdfAttachmentObject[]);
     },
+    addAttachment: (doc: PdfDocumentObject, params: PdfAddAttachmentParams) => {
+      return PdfTaskHelper.resolve(true);
+    },
+    removeAttachment: (doc: PdfDocumentObject, attachment: PdfAttachmentObject) => {
+      return PdfTaskHelper.resolve(true);
+    },
     readAttachmentContent: (doc: PdfDocumentObject, attachment: PdfAttachmentObject) => {
       return PdfTaskHelper.resolve(new ArrayBuffer(0));
     },
@@ -397,6 +415,7 @@ export function createMockPdfDocument(doc?: Partial<PdfDocumentObject>): PdfDocu
         width: pageWidth,
         height: pageHeight,
       },
+      rotation: Rotation.Degree0,
     });
   }
 

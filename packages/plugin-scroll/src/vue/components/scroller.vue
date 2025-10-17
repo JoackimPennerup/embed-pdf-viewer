@@ -5,7 +5,7 @@
 import { computed, onMounted, ref, watchEffect, useAttrs } from 'vue';
 import type { StyleValue } from 'vue';
 
-import { useScrollCapability, useScrollPlugin } from '../hooks';
+import { useScrollPlugin } from '../hooks';
 import { ScrollStrategy, type ScrollerLayout, type PageLayout } from '@embedpdf/plugin-scroll';
 import { useRegistry } from '@embedpdf/core/vue';
 import type { PdfDocumentObject, Rotation } from '@embedpdf/models';
@@ -26,7 +26,6 @@ const attrs = useAttrs();
 /* ------------------------------------------------------------------ */
 /* plugin + reactive state                                            */
 /* ------------------------------------------------------------------ */
-const { provides: scrollProvides } = useScrollCapability();
 const { plugin: scrollPlugin } = useScrollPlugin();
 const { registry } = useRegistry(); // shallowRef<PluginRegistry|null>
 
@@ -34,10 +33,10 @@ const layout = ref<ScrollerLayout | null>(null);
 
 /* subscribe to scroller‑layout updates */
 watchEffect((onCleanup) => {
-  if (!scrollProvides.value) return;
+  if (!scrollPlugin.value) return;
 
-  layout.value = scrollProvides.value.getScrollerLayout();
-  const off = scrollProvides.value.onScrollerData((l) => (layout.value = l));
+  layout.value = scrollPlugin.value.getScrollerLayout();
+  const off = scrollPlugin.value.onScrollerData((l) => (layout.value = l));
   onCleanup(off);
 });
 

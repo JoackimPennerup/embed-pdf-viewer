@@ -28,7 +28,7 @@ export function PendingRedactions({
   useEffect(() => {
     if (!redaction) return;
     const off1 = redaction.onPendingChange((map) => setItems(map[pageIndex] ?? []));
-    const off2 = redaction.onSelectionChange((sel) => {
+    const off2 = redaction.onSelectedChange((sel) => {
       setSelectedId(sel && sel.page === pageIndex ? sel.id : null);
     });
     return () => {
@@ -36,8 +36,6 @@ export function PendingRedactions({
       off2?.();
     };
   }, [redaction, pageIndex]);
-
-  if (!items.length) return null;
 
   const select = useCallback(
     (e: MouseEvent | TouchEvent, id: string) => {
@@ -47,6 +45,8 @@ export function PendingRedactions({
     },
     [redaction, pageIndex],
   );
+
+  if (!items.length) return null;
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
@@ -94,7 +94,7 @@ export function PendingRedactions({
           );
         }
         // kind === 'text' → draw bounding box; inner rects are not drawn here to avoid clutter.
-        const b = it.boundingRect;
+        const b = it.rect;
         return (
           <Fragment key={it.id}>
             <div

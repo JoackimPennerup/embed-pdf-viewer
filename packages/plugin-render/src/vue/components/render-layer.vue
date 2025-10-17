@@ -1,18 +1,27 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue';
-import { ignore, PdfErrorCode, PdfErrorReason, Task } from '@embedpdf/models';
+import { ref, onBeforeUnmount, computed, watchEffect } from 'vue';
+import { ignore, PdfErrorCode } from '@embedpdf/models';
 
 import { useRenderCapability, useRenderPlugin } from '../hooks';
 
 interface Props {
   pageIndex: number;
+  /**
+   * The scale factor for rendering the page.
+   */
+  scale?: number;
+  /**
+   * @deprecated Use `scale` instead. Will be removed in the next major release.
+   */
   scaleFactor?: number;
   dpr?: number;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  scaleFactor: 1,
-});
+const props = defineProps<Props>();
+
+// Handle deprecation: prefer scale over scaleFactor, but fall back to scaleFactor if scale is not provided
+const actualScale = computed(() => props.scale ?? props.scaleFactor ?? 1);
+const actualDpr = computed(() => props.dpr ?? window.devicePixelRatio);
 
 const { provides: renderProvides } = useRenderCapability();
 const { plugin: renderPlugin } = useRenderPlugin();
@@ -20,85 +29,90 @@ const { plugin: renderPlugin } = useRenderPlugin();
 const imageUrl = ref<string | null>(null);
 const refreshTick = ref(0);
 
-let currentBlobUrl: string | null = null;
-let currentTask: Task<Blob, PdfErrorReason> | null = null;
+let urlRef: string | null = null;
+let hasLoaded = false;
 
-/* ------------------------------------------ */
-/* Helper function to abort current task */
-/* ------------------------------------------ */
-function abortCurrentTask() {
-  if (currentTask && !currentBlobUrl) {
-    currentTask.abort({
-      code: PdfErrorCode.Cancelled,
-      message: 'canceled render task',
-    });
+// Listen for external page refresh events
+watchEffect((onCleanup) => {
+  if (!renderPlugin.value) return;
+
+  const unsubscribe = renderPlugin.value.onRefreshPages((pages: number[]) => {
+    if (pages.includes(props.pageIndex)) {
+      refreshTick.value++;
+    }
+  });
+
+  onCleanup(unsubscribe);
+});
+
+// Render page when dependencies change
+watchEffect((onCleanup) => {
+  // Capture reactive dependencies
+  const pageIndex = props.pageIndex;
+  const scale = actualScale.value;
+  const dpr = actualDpr.value;
+  const tick = refreshTick.value;
+  const capability = renderProvides.value;
+
+  if (!capability) return;
+
+  // Revoke old URL before creating new one (if it's been loaded)
+  if (urlRef && hasLoaded) {
+    URL.revokeObjectURL(urlRef);
+    urlRef = null;
+    hasLoaded = false;
   }
-}
 
-/* ------------------------------------------ */
-/* render whenever pageIndex/scale/dpr/tick change */
-/* ------------------------------------------ */
-function revoke() {
-  if (currentBlobUrl) {
-    URL.revokeObjectURL(currentBlobUrl);
-    currentBlobUrl = null;
-  }
-}
-
-function startRender() {
-  abortCurrentTask();
-  revoke();
-  currentTask = null;
-
-  if (!renderProvides.value) return;
-
-  const task = renderProvides.value.renderPage({
-    pageIndex: props.pageIndex,
+  const task = capability.renderPage({
+    pageIndex,
     options: {
-      scaleFactor: props.scaleFactor,
-      dpr: props.dpr || window.devicePixelRatio,
+      scaleFactor: scale,
+      dpr,
     },
   });
 
-  currentTask = task;
-
   task.wait((blob) => {
-    currentBlobUrl = URL.createObjectURL(blob);
-    imageUrl.value = currentBlobUrl;
-    currentTask = null;
+    const objectUrl = URL.createObjectURL(blob);
+    urlRef = objectUrl;
+    imageUrl.value = objectUrl;
+    hasLoaded = false;
   }, ignore);
-}
 
-// Watch for external refresh events
-watch(
-  renderPlugin,
-  (pluginInstance, _, onCleanup) => {
-    if (pluginInstance) {
-      const unsubscribe = pluginInstance.onRefreshPages((pages: number[]) => {
-        if (pages.includes(props.pageIndex)) {
-          refreshTick.value++;
-        }
+  onCleanup(() => {
+    if (urlRef) {
+      // Only revoke if image has loaded
+      if (hasLoaded) {
+        URL.revokeObjectURL(urlRef);
+        urlRef = null;
+        hasLoaded = false;
+      }
+    } else {
+      // Task still in progress, abort it
+      task.abort({
+        code: PdfErrorCode.Cancelled,
+        message: 'canceled render task',
       });
-      onCleanup(unsubscribe);
     }
-  },
-  { immediate: true },
-);
-
-// Watch for changes that require a re-render
-watch(
-  () => [props.pageIndex, props.scaleFactor, props.dpr, renderProvides.value, refreshTick.value],
-  startRender,
-  { immediate: true },
-);
-
-/* ------------------------------------------ */
-onBeforeUnmount(() => {
-  abortCurrentTask();
-  revoke();
+  });
 });
+
+onBeforeUnmount(() => {
+  if (urlRef) {
+    URL.revokeObjectURL(urlRef);
+    urlRef = null;
+  }
+});
+
+function handleImageLoad() {
+  hasLoaded = true;
+}
 </script>
 
 <template>
-  <img v-if="imageUrl" :src="imageUrl" :style="{ width: '100%', height: '100%' }" @load="revoke" />
+  <img
+    v-if="imageUrl"
+    :src="imageUrl"
+    :style="{ width: '100%', height: '100%' }"
+    @load="handleImageLoad"
+  />
 </template>

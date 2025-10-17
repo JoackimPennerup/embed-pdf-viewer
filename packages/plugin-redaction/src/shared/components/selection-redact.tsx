@@ -1,7 +1,7 @@
 import { Rect } from '@embedpdf/models';
 
 import { useEffect, useState } from '@framework';
-import { useRedactionCapability } from '../hooks';
+import { useRedactionPlugin } from '../hooks';
 import { Highlight } from './highlight';
 
 interface SelectionRedactProps {
@@ -10,19 +10,19 @@ interface SelectionRedactProps {
 }
 
 export function SelectionRedact({ pageIndex, scale }: SelectionRedactProps) {
-  const { provides: redactionProvides } = useRedactionCapability();
+  const { plugin: redactionPlugin } = useRedactionPlugin();
   const [rects, setRects] = useState<Array<Rect>>([]);
   const [boundingRect, setBoundingRect] = useState<Rect | null>(null);
 
   useEffect(() => {
-    if (!redactionProvides) return;
+    if (!redactionPlugin) return;
 
-    return redactionProvides.onRedactionSelectionChange((formattedSelection) => {
+    return redactionPlugin.onRedactionSelectionChange((formattedSelection) => {
       const selection = formattedSelection.find((s) => s.pageIndex === pageIndex);
       setRects(selection?.segmentRects ?? []);
       setBoundingRect(selection?.rect ?? null);
     });
-  }, [redactionProvides, pageIndex]);
+  }, [redactionPlugin, pageIndex]);
 
   if (!boundingRect) return null;
 

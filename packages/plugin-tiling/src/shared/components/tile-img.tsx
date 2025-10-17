@@ -2,7 +2,7 @@ import { ignore, PdfErrorCode } from '@embedpdf/models';
 import { Tile } from '@embedpdf/plugin-tiling';
 import { useEffect, useRef, useState } from '@framework';
 
-import { useTilingCapability, useTilingPlugin } from '../hooks/use-tiling';
+import { useTilingCapability } from '../hooks/use-tiling';
 
 interface TileImgProps {
   pageIndex: number;
@@ -13,22 +13,11 @@ interface TileImgProps {
 
 export function TileImg({ pageIndex, tile, dpr, scale }: TileImgProps) {
   const { provides: tilingCapability } = useTilingCapability();
-  const { plugin: tilingPlugin } = useTilingPlugin();
 
   const [url, setUrl] = useState<string>();
   const urlRef = useRef<string | null>(null);
-  const [refreshTick, setRefreshTick] = useState(0);
 
   const relativeScale = scale / tile.srcScale;
-
-  useEffect(() => {
-    if (!tilingPlugin) return;
-    return tilingPlugin.onRefreshPages((pages) => {
-      if (pages.includes(pageIndex)) {
-        setRefreshTick((tick) => tick + 1);
-      }
-    });
-  }, [tilingPlugin]);
 
   /* kick off render exactly once per tile */
   useEffect(() => {
@@ -52,7 +41,7 @@ export function TileImg({ pageIndex, tile, dpr, scale }: TileImgProps) {
         });
       }
     };
-  }, [pageIndex, tile.id, refreshTick]); // id includes scale, so unique
+  }, [pageIndex, tile.id]); // id includes scale, so unique
 
   const handleImageLoad = () => {
     if (urlRef.current) {

@@ -25,7 +25,7 @@ export const RedactionMenu = ({ item, pageIndex, ...props }: RedactionMenuProps)
   return (
     <div
       {...props}
-      className="flex flex-row gap-1 rounded-md border border-[#cfd4da] bg-[#f8f9fa] p-1"
+      className="flex cursor-default flex-row gap-1 rounded-md border border-[#cfd4da] bg-[#f8f9fa] p-1"
     >
       <Tooltip position={'bottom'} content={'Delete Redaction'} trigger={'hover'} delay={500}>
         <Button onClick={handleDeleteClick}>

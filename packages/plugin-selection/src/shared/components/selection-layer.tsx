@@ -1,6 +1,6 @@
 import { useEffect, useState } from '@framework';
 import { Rect } from '@embedpdf/models';
-import { useSelectionCapability } from '../hooks';
+import { useSelectionCapability, useSelectionPlugin } from '../hooks';
 
 type Props = {
   pageIndex: number;
@@ -9,21 +9,21 @@ type Props = {
 };
 
 export function SelectionLayer({ pageIndex, scale, background = 'rgba(33,150,243)' }: Props) {
-  const { provides: sel } = useSelectionCapability();
+  const { plugin: selPlugin } = useSelectionPlugin();
   const [rects, setRects] = useState<Rect[]>([]);
   const [boundingRect, setBoundingRect] = useState<Rect | null>(null);
 
   useEffect(() => {
-    if (!sel) return;
+    if (!selPlugin) return;
 
-    return sel.registerSelectionOnPage({
+    return selPlugin.registerSelectionOnPage({
       pageIndex,
       onRectsChange: ({ rects, boundingRect }) => {
         setRects(rects);
         setBoundingRect(boundingRect);
       },
     });
-  }, [sel, pageIndex]);
+  }, [selPlugin, pageIndex]);
 
   if (!boundingRect) return null;
 

@@ -3,6 +3,15 @@ import { PdfPageObject, Rect, Rotation } from '@embedpdf/models';
 import { ViewportMetrics } from '@embedpdf/plugin-viewport';
 import { VirtualItem } from './types/virtual-item';
 
+export type ScrollBehavior = 'instant' | 'smooth' | 'auto';
+
+export interface PageChangeState {
+  isChanging: boolean;
+  targetPage: number;
+  fromPage: number;
+  startTime: number;
+}
+
 export interface ScrollState extends ScrollMetrics {
   virtualItems: VirtualItem[];
   totalPages: number;
@@ -11,6 +20,7 @@ export interface ScrollState extends ScrollMetrics {
   strategy: ScrollStrategy;
   pageGap: number;
   scale: number;
+  pageChangeState: PageChangeState;
 }
 
 export interface ScrollerLayout {
@@ -91,20 +101,20 @@ export interface PageChangePayload {
 }
 
 export interface ScrollCapability {
-  onScrollerData: EventHook<ScrollerLayout>;
   onStateChange: EventHook<ScrollState>;
   onScroll: EventHook<ScrollMetrics>;
   getCurrentPage(): number;
   getTotalPages(): number;
+  getPageChangeState(): PageChangeState;
   onPageChange: EventHook<PageChangePayload>;
   onLayoutChange: EventHook<LayoutChangePayload>;
+  onPageChangeState: EventHook<PageChangeState>;
   onLayoutReady: EventHook<boolean>;
   scrollToPage(options: ScrollToPageOptions): void;
   scrollToNextPage(behavior?: ScrollBehavior): void;
   scrollToPreviousPage(behavior?: ScrollBehavior): void;
   getMetrics(viewport?: ViewportMetrics): ScrollMetrics;
   getLayout(): LayoutChangePayload;
-  getScrollerLayout(): ScrollerLayout;
   getRectPositionForPage(
     page: number,
     rect: Rect,
@@ -113,4 +123,5 @@ export interface ScrollCapability {
   ): Rect | null;
   setScrollStrategy(strategy: ScrollStrategy): void;
   getPageGap(): number;
+  getPageChangeState: () => PageChangeState;
 }

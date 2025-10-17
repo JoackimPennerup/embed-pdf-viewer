@@ -6,6 +6,7 @@ const LOG_CATEGORY = 'TEST';
 describe('LevelLogger', () => {
   it('should call log function based on level', () => {
     const testLogger: Logger = {
+      isEnabled: jest.fn().mockReturnValue(true),
       debug: jest.fn(),
       info: jest.fn(),
       warn: jest.fn(),

@@ -1,15 +1,33 @@
 import { WrappedPdfiumModule } from '@embedpdf/pdfium';
 
+export interface CacheConfig {
+  /** Time-to-live for pages in milliseconds (default: 5000ms) */
+  pageTtl?: number;
+  /** Maximum number of pages to keep in cache per document (default: 50) */
+  maxPagesPerDocument?: number;
+}
+
+const DEFAULT_CONFIG: Required<CacheConfig> = {
+  pageTtl: 5000, // 5 seconds
+  maxPagesPerDocument: 10,
+};
+
 export class PdfCache {
   private readonly docs = new Map<string, DocumentContext>();
+  private readonly config: Required<CacheConfig>;
 
-  constructor(private readonly pdfium: WrappedPdfiumModule) {}
+  constructor(
+    private readonly pdfium: WrappedPdfiumModule,
+    config: CacheConfig = {},
+  ) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+  }
 
   /** Open (or re-use) a document */
   setDocument(id: string, filePtr: number, docPtr: number) {
     let ctx = this.docs.get(id);
     if (!ctx) {
-      ctx = new DocumentContext(filePtr, docPtr, this.pdfium);
+      ctx = new DocumentContext(filePtr, docPtr, this.pdfium, this.config);
       this.docs.set(id, ctx);
     }
   }
@@ -27,6 +45,45 @@ export class PdfCache {
     this.docs.delete(docId);
     return true;
   }
+
+  /** Close all documents */
+  closeAllDocuments(): void {
+    for (const ctx of this.docs.values()) {
+      ctx.dispose();
+    }
+    this.docs.clear();
+  }
+
+  /** Update cache configuration for all existing documents */
+  updateConfig(newConfig: CacheConfig): void {
+    Object.assign(this.config, newConfig);
+    // Update config for all existing document contexts
+    for (const ctx of this.docs.values()) {
+      ctx.updateConfig(this.config);
+    }
+  }
+
+  /** Get current cache statistics */
+  getCacheStats(): {
+    documents: number;
+    totalPages: number;
+    pagesByDocument: Record<string, number>;
+  } {
+    const pagesByDocument: Record<string, number> = {};
+    let totalPages = 0;
+
+    for (const [docId, ctx] of this.docs.entries()) {
+      const pageCount = ctx.getCacheSize();
+      pagesByDocument[docId] = pageCount;
+      totalPages += pageCount;
+    }
+
+    return {
+      documents: this.docs.size,
+      totalPages,
+      pagesByDocument,
+    };
+  }
 }
 
 export class DocumentContext {
@@ -36,8 +93,9 @@ export class DocumentContext {
     public readonly filePtr: number,
     public readonly docPtr: number,
     pdfium: WrappedPdfiumModule,
+    config: Required<CacheConfig>,
   ) {
-    this.pageCache = new PageCache(pdfium, docPtr);
+    this.pageCache = new PageCache(pdfium, docPtr, config);
   }
 
   /** Main accessor for pages */
@@ -48,6 +106,16 @@ export class DocumentContext {
   /** Scoped accessor for one-off / bulk operations */
   borrowPage<T>(pageIdx: number, fn: (ctx: PageContext) => T): T {
     return this.pageCache.borrowPage(pageIdx, fn);
+  }
+
+  /** Update cache configuration */
+  updateConfig(config: Required<CacheConfig>): void {
+    this.pageCache.updateConfig(config);
+  }
+
+  /** Get number of pages currently in cache */
+  getCacheSize(): number {
+    return this.pageCache.size();
   }
 
   /** Tear down all pages + this document */
@@ -65,27 +133,41 @@ export class DocumentContext {
 
 export class PageCache {
   private readonly cache = new Map<number, PageContext>();
+  private readonly accessOrder: number[] = []; // LRU tracking
+  private config: Required<CacheConfig>;
 
   constructor(
     public readonly pdf: WrappedPdfiumModule,
     private readonly docPtr: number,
-  ) {}
+    config: Required<CacheConfig>,
+  ) {
+    this.config = config;
+  }
 
   acquire(pageIdx: number): PageContext {
     let ctx = this.cache.get(pageIdx);
+
     if (!ctx) {
+      // Ensure we don't exceed max cache size
+      this.evictIfNeeded();
+
       const pagePtr = this.pdf.FPDF_LoadPage(this.docPtr, pageIdx);
-      ctx = new PageContext(this.pdf, this.docPtr, pageIdx, pagePtr, () => {
+      ctx = new PageContext(this.pdf, this.docPtr, pageIdx, pagePtr, this.config.pageTtl, () => {
         this.cache.delete(pageIdx);
+        this.removeFromAccessOrder(pageIdx);
       });
       this.cache.set(pageIdx, ctx);
     }
+
+    // Update LRU order
+    this.updateAccessOrder(pageIdx);
+
     ctx.clearExpiryTimer(); // cancel any pending teardown
     ctx.bumpRefCount(); // bump ref‐count
     return ctx;
   }
 
-  /** Helper: run a function “scoped” to a page.
+  /** Helper: run a function "scoped" to a page.
    *    – if the page was already cached  → .release() (keeps TTL logic)
    *    – if the page was loaded just now → .disposeImmediate() (free right away)
    */
@@ -104,15 +186,75 @@ export class PageCache {
       ctx.disposeImmediate();
     }
     this.cache.clear();
+    this.accessOrder.length = 0;
+  }
+
+  /** Update cache configuration */
+  updateConfig(config: Required<CacheConfig>): void {
+    this.config = config;
+
+    // Update TTL for all existing pages
+    for (const ctx of this.cache.values()) {
+      ctx.updateTtl(config.pageTtl);
+    }
+
+    // Evict pages if new max size is smaller
+    this.evictIfNeeded();
+  }
+
+  /** Get current cache size */
+  size(): number {
+    return this.cache.size;
+  }
+
+  /** Evict least recently used pages if cache exceeds max size */
+  private evictIfNeeded(): void {
+    while (this.cache.size >= this.config.maxPagesPerDocument) {
+      const lruPageIdx = this.accessOrder[0];
+      if (lruPageIdx !== undefined) {
+        const ctx = this.cache.get(lruPageIdx);
+        if (ctx) {
+          // Only evict if not currently in use (refCount === 0)
+          if (ctx.getRefCount() === 0) {
+            ctx.disposeImmediate();
+            // onFinalDispose callback will remove from cache and accessOrder
+          } else {
+            // If the LRU page is in use, we can't evict it
+            // Move to a different strategy or break to avoid infinite loop
+            break;
+          }
+        } else {
+          // Page not in cache but in access order - clean up
+          this.removeFromAccessOrder(lruPageIdx);
+        }
+      } else {
+        break;
+      }
+    }
+  }
+
+  /** Update the access order for LRU tracking */
+  private updateAccessOrder(pageIdx: number): void {
+    // Remove from current position
+    this.removeFromAccessOrder(pageIdx);
+    // Add to end (most recently used)
+    this.accessOrder.push(pageIdx);
+  }
+
+  /** Remove a page from the access order array */
+  private removeFromAccessOrder(pageIdx: number): void {
+    const index = this.accessOrder.indexOf(pageIdx);
+    if (index > -1) {
+      this.accessOrder.splice(index, 1);
+    }
   }
 }
-
-const PAGE_TTL = 5000; // 5 seconds
 
 export class PageContext {
   private refCount = 0;
   private expiryTimer?: ReturnType<typeof setTimeout>;
   private disposed = false;
+  private ttl: number;
 
   // lazy helpers
   private textPagePtr?: number;
@@ -124,13 +266,21 @@ export class PageContext {
     public readonly docPtr: number,
     public readonly pageIdx: number,
     public readonly pagePtr: number,
+    ttl: number,
     private readonly onFinalDispose: () => void,
-  ) {}
+  ) {
+    this.ttl = ttl;
+  }
 
   /** Called by PageCache.acquire() */
   bumpRefCount() {
     if (this.disposed) throw new Error('Context already disposed');
     this.refCount++;
+  }
+
+  /** Get current reference count */
+  getRefCount(): number {
+    return this.refCount;
   }
 
   /** Called by PageCache.acquire() */
@@ -141,13 +291,23 @@ export class PageContext {
     }
   }
 
+  /** Update TTL configuration */
+  updateTtl(newTtl: number): void {
+    this.ttl = newTtl;
+    // If there's an active timer and ref count is 0, restart with new TTL
+    if (this.expiryTimer && this.refCount === 0) {
+      this.clearExpiryTimer();
+      this.expiryTimer = setTimeout(() => this.disposeImmediate(), this.ttl);
+    }
+  }
+
   /** Called by PageCache.release() internally */
   release() {
     if (this.disposed) return;
     this.refCount--;
     if (this.refCount === 0) {
       // schedule the one-and-only timer for the page
-      this.expiryTimer = setTimeout(() => this.disposeImmediate(), PAGE_TTL);
+      this.expiryTimer = setTimeout(() => this.disposeImmediate(), this.ttl);
     }
   }
 
@@ -155,6 +315,9 @@ export class PageContext {
   disposeImmediate() {
     if (this.disposed) return;
     this.disposed = true;
+
+    // Clear any pending timer
+    this.clearExpiryTimer();
 
     // 2️⃣ close text-page if opened
     if (this.textPagePtr !== undefined) {

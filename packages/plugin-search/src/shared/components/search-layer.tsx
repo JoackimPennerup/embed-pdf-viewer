@@ -45,8 +45,9 @@ export function SearchLayer({
       {...props}
     >
       {pageResults.map(({ result, originalIndex }) =>
-        result.rects.map((rect) => (
+        result.rects.map((rect, rectIndex) => (
           <div
+            key={`originalIndex-rectIndex`}
             style={{
               position: 'absolute',
               top: rect.origin.y * scale,

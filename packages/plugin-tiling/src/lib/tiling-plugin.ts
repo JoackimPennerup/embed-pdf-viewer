@@ -2,11 +2,9 @@ import {
   BasePlugin,
   CoreState,
   createBehaviorEmitter,
-  createEmitter,
   PluginRegistry,
   REFRESH_PAGES,
   StoreState,
-  Unsubscribe,
 } from '@embedpdf/core';
 import { ignore } from '@embedpdf/models';
 import { RenderCapability, RenderPlugin } from '@embedpdf/plugin-render';
@@ -27,7 +25,6 @@ export class TilingPlugin extends BasePlugin<TilingPluginConfig, TilingCapabilit
   static readonly id = 'tiling' as const;
 
   private readonly tileRendering$ = createBehaviorEmitter<Record<number, Tile[]>>();
-  private readonly refreshPages$ = createEmitter<number[]>();
 
   private config: TilingPluginConfig;
   private renderCapability: RenderCapability;
@@ -49,9 +46,42 @@ export class TilingPlugin extends BasePlugin<TilingPluginConfig, TilingCapabilit
       throttleMode: 'trailing',
     });
 
-    this.coreStore.onAction(REFRESH_PAGES, (action) => {
-      this.refreshPages$.emit(action.payload);
-    });
+    this.coreStore.onAction(REFRESH_PAGES, (action) => this.recalculateTiles(action.payload));
+  }
+
+  async recalculateTiles(pagesToRefresh: number[]): Promise<void> {
+    const currentMetrics = this.scrollCapability.getMetrics(this.viewportCapability.getMetrics());
+
+    // Recalculate tiles for refreshed pages with a new timestamp
+    const refreshedTiles: Record<number, Tile[]> = {};
+    const refreshTimestamp = Date.now();
+
+    for (const pageIndex of pagesToRefresh) {
+      const metric = currentMetrics.pageVisibilityMetrics.find(
+        (m) => m.pageNumber === pageIndex + 1,
+      );
+      if (!metric) continue;
+
+      const page = this.coreState.core.document?.pages[pageIndex];
+      if (!page) continue;
+
+      refreshedTiles[pageIndex] = calculateTilesForPage({
+        page,
+        metric,
+        scale: this.coreState.core.scale,
+        rotation: this.coreState.core.rotation,
+        tileSize: this.config.tileSize,
+        overlapPx: this.config.overlapPx,
+        extraRings: this.config.extraRings,
+      }).map((tile) => ({
+        ...tile,
+        id: `${tile.id}-r${refreshTimestamp}`, // Add refresh token to force new render
+      }));
+    }
+
+    if (Object.keys(refreshedTiles).length > 0) {
+      this.dispatch(updateVisibleTiles(refreshedTiles));
+    }
   }
 
   async initialize(): Promise<void> {
@@ -67,10 +97,6 @@ export class TilingPlugin extends BasePlugin<TilingPluginConfig, TilingCapabilit
         this.scrollCapability.getMetrics(this.viewportCapability.getMetrics()),
       );
     }
-  }
-
-  public onRefreshPages(fn: (pages: number[]) => void): Unsubscribe {
-    return this.refreshPages$.on(fn);
   }
 
   private calculateVisibleTiles(scrollMetrics: ScrollMetrics): void {

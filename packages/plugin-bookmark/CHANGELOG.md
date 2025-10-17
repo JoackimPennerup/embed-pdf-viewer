@@ -1,5 +1,47 @@
 # @embedpdf/plugin-bookmark
 
+## 1.3.14
+
+## 1.3.13
+
+## 1.3.12
+
+## 1.3.11
+
+## 1.3.10
+
+## 1.3.9
+
+## 1.3.8
+
+## 1.3.7
+
+## 1.3.6
+
+## 1.3.5
+
+## 1.3.4
+
+## 1.3.3
+
+## 1.3.2
+
+## 1.3.1
+
+## 1.3.0
+
+### Patch Changes
+
+- [#168](https://github.com/embedpdf/embed-pdf-viewer/pull/168) by [@Ludy87](https://github.com/Ludy87) – Add license fields to the package.json with the value MIT
+
+## 1.2.1
+
+## 1.2.0
+
+## 1.1.1
+
+## 1.1.0
+
 ## 1.0.26
 
 ## 1.0.25

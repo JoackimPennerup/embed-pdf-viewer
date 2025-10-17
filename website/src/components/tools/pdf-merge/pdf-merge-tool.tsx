@@ -4,42 +4,40 @@ import React, { useEffect, useState } from 'react'
 import { DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { DocumentPage, DocumentWithPages, MergeDocPage } from './types'
-import { openPdfDocument, mergePdfPages, closePdfDocument } from './pdf-engine'
+import { mergePdfPages, closePdfDocument } from './pdf-engine'
 import { DocumentView } from './document-view'
 import { MergeView } from './merge-view'
-import { MergeResult } from './merge-result'
-import { usePdfiumEngine } from '@embedpdf/engines/react'
-import { ignore } from '@embedpdf/models'
+import { useEngine } from '@embedpdf/engines/react'
+import { ToolLayout } from '../shared/tool-layout'
+import { FilePicker, DocumentWithFile } from '../shared/file-picker'
+import { LoadingState } from '../shared/loading-state'
+import { FAQ } from '../shared/faq'
+import { generalToolFAQs, mergeFAQs, toolCategories } from '../shared/faq-data'
+import { RotateCcw } from 'lucide-react'
+import { ResultCard } from '../shared/result-card'
 
 export const PdfMergeTool = () => {
-  const { engine } = usePdfiumEngine()
-  const [isInitialized, setIsInitialized] = useState(false)
+  const engine = useEngine()
   const [docs, setDocs] = useState<Record<string, DocumentWithPages>>({})
   const [mergePages, setMergePages] = useState<MergeDocPage[]>([])
   const [isMerging, setIsMerging] = useState(false)
   const [mergedPdf, setMergedPdf] = useState<string | null>(null)
 
   useEffect(() => {
-    if (engine && !isInitialized) {
-      engine.initialize?.().wait(() => setIsInitialized(true), ignore)
+    // Cleanup on unmount
+    return () => {
+      if (engine) {
+        engine.closeAllDocuments()
+      }
     }
   }, [engine])
 
-  // Handle file upload
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    if (!engine || !event.target.files?.length) return
+  // Handle document upload from enhanced FilePicker
+  const handleDocumentSelect = async (documents: DocumentWithFile[]) => {
+    if (!engine || !documents.length) return
 
-    const files = Array.from(event.target.files)
-
-    for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer()
-
+    for (const { doc, fileName } of documents) {
       try {
-        // Open the document
-        const doc = await openPdfDocument(engine, arrayBuffer)
-
         // Initialize pages array for this document
         const pages: DocumentPage[] = Array.from(
           { length: doc.pages.length },
@@ -53,15 +51,12 @@ export const PdfMergeTool = () => {
         // Add the document to state
         setDocs((prevDocs) => ({
           ...prevDocs,
-          [doc.id]: { doc, pages },
+          [doc.id]: { doc: { ...doc, name: fileName }, pages },
         }))
       } catch (error) {
-        console.error('Error opening PDF:', error)
+        console.error('Error processing document:', error)
       }
     }
-
-    // Reset the input
-    event.target.value = ''
   }
 
   // New consolidated update handler
@@ -215,93 +210,82 @@ export const PdfMergeTool = () => {
     )
   }
 
+  const faqItems = [...mergeFAQs]
+
   return (
-    <div className="py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Header Section - Always visible */}
-        <div className="mb-12 text-center">
-          <div className="mb-6 inline-block rounded-full border border-blue-200 bg-blue-50 px-6 py-2 text-sm font-medium text-blue-800">
-            PDF Merge Tool
+    <ToolLayout
+      title="Merge PDFs"
+      subtitle="right in your browser"
+      description="Securely combine PDFs with complete privacy"
+      badgeText="PDF Merge Tool"
+      badgeColor="border-purple-200 bg-purple-50 text-purple-800"
+      gradientColor="from-purple-600 to-blue-700"
+    >
+      {!engine ? (
+        <LoadingState borderColor="border-purple-500" />
+      ) : mergedPdf ? (
+        <ResultCard
+          title="Merged Successfully!"
+          message="Your combined PDF is ready to download."
+          download={{
+            url: mergedPdf,
+            fileName: 'merged_document.pdf',
+            label: 'Download Merged PDF',
+          }}
+          secondary={{
+            label: 'Merge More PDFs',
+            onClick: resetTool,
+            icon: RotateCcw,
+          }}
+        />
+      ) : Object.keys(docs).length === 0 ? (
+        <>
+          <FilePicker
+            engine={engine}
+            onDocumentSelect={handleDocumentSelect}
+            multiple={true}
+            buttonText="Choose PDF Files"
+            helperText="All processing happens locally in your browser for complete privacy."
+            gradientColor="from-purple-600 to-blue-700"
+          />
+        </>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Source documents */}
+          <div>
+            <h2 className="mb-2 text-xl font-semibold">Source Documents</h2>
+            <DocumentView
+              documents={docs}
+              onUpdatePages={handleUpdatePages}
+              onAddSelectedPages={addSelectedPages}
+              onCloseDocument={handleCloseDocument}
+              engine={engine}
+            />
           </div>
-          <h1 className="mb-6 text-4xl font-black leading-tight tracking-tight text-gray-900 md:text-5xl">
-            Merge PDFs
-            <span className="block bg-gradient-to-r from-blue-600 to-teal-500 bg-clip-text text-transparent">
-              right in your browser
-            </span>
-          </h1>
-          <p className="mx-auto max-w-2xl text-xl text-gray-600">
-            Securely combine PDFs with complete privacy - your files never leave
-            your device.
-          </p>
+
+          {/* Target document */}
+          <div>
+            <h2 className="mb-2 text-xl font-semibold">New Document</h2>
+            <MergeView
+              pages={mergePages}
+              onDragEnd={handleDragEnd}
+              onRemovePage={removePage}
+              onMerge={mergePDFs}
+              isMerging={isMerging}
+            />
+          </div>
         </div>
+      )}
 
-        {!engine || !isInitialized ? (
-          // Loading state
-          <div className="mb-12 text-center">
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-            <p className="text-sm text-gray-500">Loading PDF engine...</p>
-          </div>
-        ) : mergedPdf ? (
-          <MergeResult mergedPdfUrl={mergedPdf} onReset={resetTool} />
-        ) : (
-          <>
-            {/* File Selection - Centered */}
-            <div className="mb-12 text-center">
-              <input
-                type="file"
-                accept=".pdf"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-                id="pdf-file-input"
-              />
-              <button
-                onClick={() =>
-                  document.getElementById('pdf-file-input')?.click()
-                }
-                className="cursor-pointer rounded-full bg-gradient-to-r from-blue-600 to-teal-500 px-6 py-3 text-sm font-medium text-white transition-shadow hover:shadow-md"
-              >
-                Choose PDF Files
-              </button>
-              <p className="mt-6 text-sm text-gray-500">
-                All processing happens locally in your browser for complete
-                privacy.
-              </p>
-            </div>
-
-            {/* Only show document sections if there are documents */}
-            {Object.keys(docs).length > 0 && (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {/* Source documents */}
-                <div>
-                  <h2 className="mb-2 text-xl font-semibold">
-                    Source Documents
-                  </h2>
-                  <DocumentView
-                    documents={docs}
-                    onUpdatePages={handleUpdatePages}
-                    onAddSelectedPages={addSelectedPages}
-                    onCloseDocument={handleCloseDocument}
-                    engine={engine}
-                  />
-                </div>
-
-                {/* Target document */}
-                <div>
-                  <h2 className="mb-2 text-xl font-semibold">New Document</h2>
-                  <MergeView
-                    pages={mergePages}
-                    onDragEnd={handleDragEnd}
-                    onRemovePage={removePage}
-                    onMerge={mergePDFs}
-                    isMerging={isMerging}
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        )}
+      {/* FAQ Section */}
+      <div className="mt-16">
+        <FAQ
+          items={faqItems}
+          title="Frequently Asked Questions"
+          subtitle="Everything you need to know about merging PDFs"
+          gradientColor="from-purple-600 to-blue-700"
+        />
       </div>
-    </div>
+    </ToolLayout>
   )
 }

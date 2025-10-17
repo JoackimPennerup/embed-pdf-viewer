@@ -1,6 +1,11 @@
 import { BasePluginConfig, EventHook } from '@embedpdf/core';
 import { PdfErrorReason, Rect, Task } from '@embedpdf/models';
-import { FormattedSelection } from '@embedpdf/plugin-selection';
+
+// Redaction mode enum
+export enum RedactionMode {
+  MarqueeRedact = 'marqueeRedact',
+  RedactSelection = 'redactSelection',
+}
 
 export interface SelectedRedaction {
   page: number;
@@ -9,7 +14,9 @@ export interface SelectedRedaction {
 
 export interface RedactionState {
   isRedacting: boolean;
+  activeType: RedactionMode | null;
   pending: Record<number, RedactionItem[]>;
+  pendingCount: number;
   selected: SelectedRedaction | null;
 }
 
@@ -18,8 +25,8 @@ export type RedactionItem =
       id: string;
       kind: 'text';
       page: number;
-      boundingRect: Rect;
-      rects: Rect[]; // inner segments
+      rect: Rect;
+      rects: Rect[];
     }
   | {
       id: string;
@@ -43,6 +50,26 @@ export interface RedactionPluginConfig extends BasePluginConfig {
   drawBlackBoxes: boolean;
 }
 
+// Add event types similar to annotation plugin
+export type RedactionEvent =
+  | {
+      type: 'add';
+      items: RedactionItem[];
+    }
+  | {
+      type: 'remove';
+      page: number;
+      id: string;
+    }
+  | {
+      type: 'clear';
+    }
+  | {
+      type: 'commit';
+      success: boolean;
+      error?: PdfErrorReason;
+    };
+
 export interface RedactionCapability {
   queueCurrentSelectionAsPending: () => Task<boolean, PdfErrorReason>;
 
@@ -54,9 +81,8 @@ export interface RedactionCapability {
   toggleRedactSelection: () => void;
   isRedactSelectionActive: () => boolean;
 
-  onRedactionSelectionChange: EventHook<FormattedSelection[]>;
-
   onPendingChange: EventHook<Record<number, RedactionItem[]>>;
+  addPending: (items: RedactionItem[]) => void;
   removePending: (page: number, id: string) => void;
   clearPending: () => void;
   commitAllPending: () => Task<boolean, PdfErrorReason>;
@@ -65,10 +91,11 @@ export interface RedactionCapability {
   endRedaction: () => void;
   startRedaction: () => void;
 
-  onSelectionChange: EventHook<SelectedRedaction | null>;
   selectPending: (page: number, id: string) => void;
   deselectPending: () => void;
 
-  // keep the single entry point to wire marquee on a page
-  registerMarqueeOnPage(opts: RegisterMarqueeOnPageOptions): () => void;
+  // Event hook for redaction events
+  onSelectedChange: EventHook<SelectedRedaction | null>;
+  onRedactionEvent: EventHook<RedactionEvent>;
+  onStateChange: EventHook<RedactionState>;
 }

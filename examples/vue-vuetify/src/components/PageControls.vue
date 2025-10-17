@@ -4,7 +4,7 @@ import { useScroll } from '@embedpdf/plugin-scroll/vue';
 import { ref, computed, watch, onUnmounted } from 'vue';
 
 const { provides: viewport } = useViewportCapability();
-const { currentPage, totalPages, scroll } = useScroll();
+const { provides: scroll, state } = useScroll();
 
 const isVisible = ref(false);
 const isHovering = ref(false);
@@ -13,7 +13,7 @@ const inputValue = ref<string>('1');
 
 // Update input value when current page changes
 watch(
-  currentPage,
+  () => state.value.currentPage,
   (newPage) => {
     inputValue.value = newPage.toString();
   },
@@ -66,7 +66,7 @@ const handleMouseLeave = () => {
 const handlePageSubmit = () => {
   const page = parseInt(inputValue.value);
 
-  if (!isNaN(page) && page >= 1 && page <= totalPages.value && scroll.value) {
+  if (!isNaN(page) && page >= 1 && page <= state.value.totalPages && scroll.value) {
     scroll.value.scrollToPage({
       pageNumber: page,
     });
@@ -74,17 +74,17 @@ const handlePageSubmit = () => {
 };
 
 const handlePreviousPage = () => {
-  if (currentPage.value > 1 && scroll.value) {
+  if (state.value.currentPage > 1 && scroll.value) {
     scroll.value.scrollToPage({
-      pageNumber: currentPage.value - 1,
+      pageNumber: state.value.currentPage - 1,
     });
   }
 };
 
 const handleNextPage = () => {
-  if (currentPage.value < totalPages.value && scroll.value) {
+  if (state.value.currentPage < state.value.totalPages && scroll.value) {
     scroll.value.scrollToPage({
-      pageNumber: currentPage.value + 1,
+      pageNumber: state.value.currentPage + 1,
     });
   }
 };
@@ -95,8 +95,8 @@ const handleInputChange = (value: string) => {
   inputValue.value = numericValue;
 };
 
-const isPreviousDisabled = computed(() => currentPage.value === 1);
-const isNextDisabled = computed(() => currentPage.value === totalPages.value);
+const isPreviousDisabled = computed(() => state.value.currentPage === 1);
+const isNextDisabled = computed(() => state.value.currentPage === state.value.totalPages);
 </script>
 
 <template>
@@ -123,7 +123,7 @@ const isNextDisabled = computed(() => currentPage.value === totalPages.value);
           class="page-input"
         />
         <span class="page-separator">/</span>
-        <span class="total-pages">{{ totalPages }}</span>
+        <span class="total-pages">{{ state.totalPages }}</span>
       </form>
 
       <!-- Next page button -->

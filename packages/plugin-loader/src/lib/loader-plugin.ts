@@ -67,6 +67,9 @@ export class LoaderPlugin extends BasePlugin<LoaderPluginConfig, LoaderCapabilit
     options: Omit<PDFLoadingOptions, 'engine'>,
   ): Promise<PdfDocumentObject> {
     try {
+      if (this.loadedDocument) {
+        this.engine.closeDocument(this.loadedDocument);
+      }
       this.loaderHandlers$.emit({ type: 'start', documentId: options.pdfFile.id });
       this.dispatchCoreAction(loadDocument());
       const document = await this.documentLoader.loadDocument({

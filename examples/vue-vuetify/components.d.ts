@@ -8,12 +8,16 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AnnotationSelectionMenu: typeof import('./src/components/AnnotationSelectionMenu.vue')['default']
+    AnnotationToolbar: typeof import('./src/components/AnnotationToolbar.vue')['default']
     Application: typeof import('./src/components/Application.vue')['default']
     Drawer: typeof import('./src/components/drawer-system/Drawer.vue')['default']
     DrawerProvider: typeof import('./src/components/drawer-system/DrawerProvider.vue')['default']
     DrawerToggleButton: typeof import('./src/components/drawer-system/DrawerToggleButton.vue')['default']
     PageControls: typeof import('./src/components/PageControls.vue')['default']
     PrintDialog: typeof import('./src/components/PrintDialog.vue')['default']
+    RedactionSelectionMenu: typeof import('./src/components/RedactionSelectionMenu.vue')['default']
+    RedactToolbar: typeof import('./src/components/RedactToolbar.vue')['default']
     Search: typeof import('./src/components/Search.vue')['default']
     Sidebar: typeof import('./src/components/Sidebar.vue')['default']
     Toolbar: typeof import('./src/components/Toolbar.vue')['default']

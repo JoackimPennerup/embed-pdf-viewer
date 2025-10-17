@@ -7,10 +7,13 @@ import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 
 export const PageControls = () => {
   const { provides: viewport } = useViewportCapability();
-  const { currentPage, totalPages, scrollToPage } = useScroll();
+  const {
+    provides: scroll,
+    state: { currentPage, totalPages },
+  } = useScroll();
   const [isVisible, setIsVisible] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const hideTimeoutRef = useRef<NodeJS.Timeout>(null);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [inputValue, setInputValue] = useState<string>(currentPage.toString());
 
   useEffect(() => {
@@ -64,7 +67,7 @@ export const PageControls = () => {
     const page = parseInt(pageStr);
 
     if (!isNaN(page) && page >= 1 && page <= totalPages) {
-      scrollToPage?.({
+      scroll?.scrollToPage?.({
         pageNumber: page,
       });
     }
@@ -74,7 +77,7 @@ export const PageControls = () => {
     e.preventDefault();
     e.currentTarget.blur();
     if (currentPage > 1) {
-      scrollToPage?.({
+      scroll?.scrollToPage?.({
         pageNumber: currentPage - 1,
       });
     }
@@ -84,7 +87,7 @@ export const PageControls = () => {
     e.preventDefault();
     e.currentTarget.blur();
     if (currentPage < totalPages) {
-      scrollToPage?.({
+      scroll?.scrollToPage?.({
         pageNumber: currentPage + 1,
       });
     }

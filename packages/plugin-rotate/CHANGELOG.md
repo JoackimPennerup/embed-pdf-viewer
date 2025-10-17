@@ -1,5 +1,62 @@
 # @embedpdf/plugin-rotate
 
+## 1.3.14
+
+## 1.3.13
+
+## 1.3.12
+
+## 1.3.11
+
+## 1.3.10
+
+## 1.3.9
+
+## 1.3.8
+
+## 1.3.7
+
+## 1.3.6
+
+## 1.3.5
+
+## 1.3.4
+
+## 1.3.3
+
+## 1.3.2
+
+## 1.3.1
+
+## 1.3.0
+
+### Patch Changes
+
+- [#168](https://github.com/embedpdf/embed-pdf-viewer/pull/168) by [@Ludy87](https://github.com/Ludy87) – Add license fields to the package.json with the value MIT
+
+## 1.2.1
+
+## 1.2.0
+
+## 1.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- [#141](https://github.com/embedpdf/embed-pdf-viewer/pull/141) by [@bobsingor](https://github.com/bobsingor) – Refactored rotate plugin API and utilities:
+
+  - Moved `getNextRotation`, `getPreviousRotation`, and rotation matrix helpers into `utils`.
+  - Split matrix helpers into:
+    - **`getRotationMatrix`** → returns the numeric 6-tuple.
+    - **`getRotationMatrixString`** → returns a CSS `matrix(...)` string.
+  - `RotateCapability.onRotateChange` is now typed as an **`EventHook<Rotation>`**.
+  - Added **`getMatrixAsString`** method to `RotatePlugin` for CSS transforms.
+  - Updated React (`Rotate` component + hook) and Vue (`rotate.vue` + hook) to use `useRotatePlugin` and the new API.
+  - Added new `useRotate` hooks (React + Vue) for reactive rotation state.
+
+  These changes make the rotate plugin API more consistent, typed, and ergonomic across frameworks.
+
 ## 1.0.26
 
 ## 1.0.25

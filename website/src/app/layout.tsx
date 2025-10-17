@@ -1,12 +1,11 @@
 import '@/styles/tailwind.css'
-import Navbar from '@/components/navbar'
-import { ConfigProvider } from '@/components/stores/config'
 import { getPageMap } from 'nextra/page-map'
 
 export const metadata = {
-  title: 'EmbedPDF: The Lightweight JavaScript PDF Viewer for Any Framework',
+  title:
+    'Open-Source JavaScript PDF Viewer – Fast, Customizable & Framework-Agnostic | EmbedPDF',
   description:
-    'EmbedPDF is an open-source JavaScript PDF viewer that seamlessly integrates with React, Vue, Angular, Svelte, or vanilla JS. Lightweight (3.2kb gzipped), customizable, and framework-agnostic. Display, annotate, and navigate PDF documents with ease.',
+    'EmbedPDF is a blazing-fast, MIT-licensed JavaScript PDF viewer that works with React, Vue, Svelte, and plain JS. Fully customizable, zero vendor lock-in, and perfect for modern web apps.',
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
@@ -23,11 +22,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body>
-        <ConfigProvider navbar={<Navbar />} pageMap={pageMap}>
-          {children}
-        </ConfigProvider>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
