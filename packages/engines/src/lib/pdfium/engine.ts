@@ -5397,6 +5397,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const modified = this.getAnnotationDate(annotationPtr, 'M');
     const created = this.getAnnotationDate(annotationPtr, 'CreationDate');
     const vertices = this.readPdfAnnoVertices(page, annotationPtr);
+    const intent = this.getAnnotIntent(annotationPtr);
     const contents = this.getAnnotString(annotationPtr, 'Contents') || '';
     const flags = this.getAnnotationFlags(annotationPtr);
     const strokeColor = this.getAnnotationColor(annotationPtr);
@@ -5429,6 +5430,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       custom,
       id: index,
       type: PdfAnnotationSubtype.POLYGON,
+      ...(intent && { intent }),
       contents,
       flags,
       strokeColor: strokeColor ?? '#FF0000',
@@ -5469,6 +5471,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const contents = this.getAnnotString(annotationPtr, 'Contents') || '';
     const strokeColor = this.getAnnotationColor(annotationPtr);
     const flags = this.getAnnotationFlags(annotationPtr);
+    const intent = this.getAnnotIntent(annotationPtr);
     const interiorColor = this.getAnnotationColor(
       annotationPtr,
       PdfAnnotationColorType.InteriorColor,
@@ -5490,6 +5493,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       custom,
       id: index,
       type: PdfAnnotationSubtype.POLYLINE,
+      ...(intent && { intent }),
       contents,
       flags,
       strokeColor: strokeColor ?? '#FF0000',
@@ -5532,6 +5536,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const contents = this.getAnnotString(annotationPtr, 'Contents') || '';
     const strokeColor = this.getAnnotationColor(annotationPtr);
     const flags = this.getAnnotationFlags(annotationPtr);
+    const intent = this.getAnnotIntent(annotationPtr);
     const interiorColor = this.getAnnotationColor(
       annotationPtr,
       PdfAnnotationColorType.InteriorColor,
@@ -5552,6 +5557,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       custom,
       id: index,
       type: PdfAnnotationSubtype.LINE,
+      ...(intent && { intent }),
       flags,
       rect,
       contents,

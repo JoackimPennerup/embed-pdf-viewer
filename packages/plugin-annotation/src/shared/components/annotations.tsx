@@ -44,6 +44,16 @@ import { Polyline } from './annotations/polyline';
 import { Polygon } from './annotations/polygon';
 import { FreeText } from './annotations/free-text';
 import { Stamp } from './annotations/stamp';
+import { MeasurementLine } from './annotations/measurement-line';
+import { MeasurementPolygon } from './annotations/measurement-polygon';
+
+interface MeasurementCustomPayload {
+  measurement?: {
+    label?: string;
+    labelLines?: string[];
+    kind?: string;
+  };
+}
 
 interface AnnotationsProps {
   pageIndex: number;
@@ -325,16 +335,30 @@ export function Annotations(annotationsProps: AnnotationsProps) {
               }}
               {...annotationsProps}
             >
-              {(obj) => (
-                <Fragment>
-                  <Line
-                    {...obj}
-                    isSelected={isSelected}
-                    scale={scale}
-                    onClick={(e) => handleClick(e, annotation)}
-                  />
-                </Fragment>
-              )}
+              {(obj) => {
+                const measurement = (obj.custom as MeasurementCustomPayload | undefined)?.measurement;
+                const onClick = (
+                  e: MouseEvent<SVGElement> | TouchEvent<SVGElement>,
+                ): void => {
+                  handleClick(e, annotation);
+                };
+                const commonProps = {
+                  ...obj,
+                  isSelected,
+                  scale,
+                  onClick,
+                };
+
+                return (
+                  <Fragment>
+                    {measurement ? (
+                      <MeasurementLine {...commonProps} measurement={measurement} />
+                    ) : (
+                      <Line {...commonProps} />
+                    )}
+                  </Fragment>
+                );
+              }}
             </AnnotationContainer>
           );
         }
@@ -403,16 +427,30 @@ export function Annotations(annotationsProps: AnnotationsProps) {
               }}
               {...annotationsProps}
             >
-              {(obj) => (
-                <Fragment>
-                  <Polygon
-                    {...obj}
-                    isSelected={isSelected}
-                    scale={scale}
-                    onClick={(e) => handleClick(e, annotation)}
-                  />
-                </Fragment>
-              )}
+              {(obj) => {
+                const measurement = (obj.custom as MeasurementCustomPayload | undefined)?.measurement;
+                const onClick = (
+                  e: MouseEvent<SVGElement> | TouchEvent<SVGElement>,
+                ): void => {
+                  handleClick(e, annotation);
+                };
+                const commonProps = {
+                  ...obj,
+                  isSelected,
+                  scale,
+                  onClick,
+                };
+
+                return (
+                  <Fragment>
+                    {measurement ? (
+                      <MeasurementPolygon {...commonProps} measurement={measurement} />
+                    ) : (
+                      <Polygon {...commonProps} />
+                    )}
+                  </Fragment>
+                );
+              }}
             </AnnotationContainer>
           );
         }
