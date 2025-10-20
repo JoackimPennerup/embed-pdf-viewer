@@ -2197,6 +2197,18 @@ export interface PdfStructElement {
    */
   attributes: Record<string, string>;
   /**
+   * Font information typically associated with the element's text content
+   */
+  font?: PdfStructElementFont;
+  /**
+   * Text runs detected within the element
+   */
+  textRuns?: PdfStructElementTextRun[];
+  /**
+   * Individual glyphs that belong to this element
+   */
+  glyphs?: PdfStructElementGlyph[];
+  /**
    * MCIDs referenced directly by this element
    */
   mcids: number[];
@@ -2204,6 +2216,62 @@ export interface PdfStructElement {
    * Child structural elements
    */
   children: PdfStructElement[];
+}
+
+/**
+ * Font information associated with structural text content
+ *
+ * @public
+ */
+export interface PdfStructElementFont {
+  /**
+   * Font family name as reported by PDFium
+   */
+  family?: string;
+  /**
+   * Nominal font size in points
+   */
+  size?: number;
+}
+
+/**
+ * Text run belonging to a structural element
+ *
+ * @public
+ */
+export interface PdfStructElementTextRun {
+  /**
+   * Raw text contained in the run
+   */
+  text: string;
+  /**
+   * Bounding rectangle of the run in device coordinates
+   */
+  rect: Rect;
+  /**
+   * Font information recorded for the run
+   */
+  font?: PdfStructElementFont;
+}
+
+/**
+ * Glyph bounding box and styling info belonging to a structural element
+ *
+ * @public
+ */
+export interface PdfStructElementGlyph {
+  /**
+   * Unicode character represented by the glyph
+   */
+  char: string;
+  /**
+   * Bounding rectangle of the glyph in device coordinates
+   */
+  rect: Rect;
+  /**
+   * Font information recorded for the glyph
+   */
+  font?: PdfStructElementFont;
 }
 
 /**
@@ -2228,6 +2296,10 @@ export interface PdfGlyphObject {
    * Whether the glyph is a empty
    */
   isEmpty?: boolean;
+  /**
+   * Unicode code point mapped to this glyph
+   */
+  charCode?: number;
 }
 
 /**

@@ -71,6 +71,8 @@ import {
   PdfGlyphObject,
   PdfPageGeometry,
   PdfStructElement,
+  PdfStructElementFont,
+  PdfStructElementTextRun,
   PdfRun,
   toIntRect,
   Quad,
@@ -3810,7 +3812,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       y = 0,
       width = 0,
       height = 0,
-      isSpace = false;
+      isSpace = false,
+      charCode: number | undefined;
 
     // ── 1) raw glyph bbox in                      page-user-space
     if (this.pdfiumModule.FPDFText_GetLooseCharBox(textPagePtr, charIndex, rectPtr)) {
@@ -3819,6 +3822,12 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const right = this.pdfiumModule.pdfium.getValue(rectPtr + 8, 'float');
       const bottom = this.pdfiumModule.pdfium.getValue(rectPtr + 12, 'float');
 
+      const uc = this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
+      if (uc >= 0) {
+        charCode = uc;
+        isSpace = uc === 32;
+      }
+
       if (left === right || top === bottom) {
         [rectPtr, dx1Ptr, dy1Ptr, dx2Ptr, dy2Ptr].forEach((p) => this.memoryManager.free(p));
 
@@ -3826,6 +3835,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
           origin: { x: 0, y: 0 },
           size: { width: 0, height: 0 },
           isEmpty: true,
+          ...(charCode !== undefined && { charCode }),
         };
       }
 
@@ -3866,8 +3876,6 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       height = Math.max(1, Math.abs(y2 - y1));
 
       // ── 3) extra flags ───────────────────────────────────────
-      const uc = this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
-      isSpace = uc === 32;
     }
 
     // ── free tmps ───────────────────────────────────────────────
@@ -3877,6 +3885,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       origin: { x, y },
       size: { width, height },
       ...(isSpace && { isSpace }),
+      ...(charCode !== undefined && { charCode }),
     };
   }
 
@@ -8204,8 +8213,36 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       };
     };
 
-    // Build a lookup of MCID -> text and bounding box by scanning page objects once.
-    const mcidMap = new Map<number, { text: string; rect: Rect | null }>();
+    type McidRunAccumulator = {
+      text: string;
+      rect: Rect | null;
+      font?: PdfStructElementFont;
+    };
+
+    type McidInfo = {
+      text: string;
+      rect: Rect | null;
+      font?: PdfStructElementFont;
+      textRuns: PdfStructElementTextRun[];
+      runs: Map<number, McidRunAccumulator>;
+    };
+
+    const mcidMap = new Map<number, McidInfo>();
+    const ensureEntry = (mcid: number): McidInfo => {
+      let info = mcidMap.get(mcid);
+      if (!info) {
+        info = {
+          text: '',
+          rect: null,
+          font: undefined,
+          textRuns: [],
+          runs: new Map<number, McidRunAccumulator>(),
+        };
+        mcidMap.set(mcid, info);
+      }
+      return info;
+    };
+
     const scanObject = (objPtr: number) => {
       const type = this.pdfiumModule.FPDFPageObj_GetType(objPtr);
       if (type === PdfPageObjectType.FORM) {
@@ -8218,18 +8255,11 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       }
 
       const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
-      if (mcid < 0 || type !== PdfPageObjectType.TEXT) {
+      if (mcid < 0) {
         return;
       }
 
-      const len = this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, 0, 0);
-      let text = '';
-      if (len > 0) {
-        const bufPtr = this.memoryManager.malloc(len * 2); // UTF-16 characters
-        this.pdfiumModule.FPDFTextObj_GetText(objPtr, textPagePtr, bufPtr, len);
-        text = this.pdfiumModule.pdfium.UTF16ToString(bufPtr);
-        this.memoryManager.free(bufPtr);
-      }
+      const entry = ensureEntry(mcid);
 
       const leftPtr = this.memoryManager.malloc(4);
       const bottomPtr = this.memoryManager.malloc(4);
@@ -8247,6 +8277,9 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
       const deviceXPtr = this.memoryManager.malloc(4);
       const deviceYPtr = this.memoryManager.malloc(4);
+      const deviceX2Ptr = this.memoryManager.malloc(4);
+      const deviceY2Ptr = this.memoryManager.malloc(4);
+
       this.pdfiumModule.FPDF_PageToDevice(
         pageCtx.pagePtr,
         0,
@@ -8259,31 +8292,165 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         deviceXPtr,
         deviceYPtr,
       );
-      const x = this.pdfiumModule.pdfium.getValue(deviceXPtr, 'i32');
-      const y = this.pdfiumModule.pdfium.getValue(deviceYPtr, 'i32');
+      this.pdfiumModule.FPDF_PageToDevice(
+        pageCtx.pagePtr,
+        0,
+        0,
+        page.size.width,
+        page.size.height,
+        0,
+        right,
+        bottom,
+        deviceX2Ptr,
+        deviceY2Ptr,
+      );
+
+      const x1 = this.pdfiumModule.pdfium.getValue(deviceXPtr, 'i32');
+      const y1 = this.pdfiumModule.pdfium.getValue(deviceYPtr, 'i32');
+      const x2 = this.pdfiumModule.pdfium.getValue(deviceX2Ptr, 'i32');
+      const y2 = this.pdfiumModule.pdfium.getValue(deviceY2Ptr, 'i32');
+
       this.memoryManager.free(deviceXPtr);
       this.memoryManager.free(deviceYPtr);
+      this.memoryManager.free(deviceX2Ptr);
+      this.memoryManager.free(deviceY2Ptr);
 
       const rect: Rect = {
-        origin: { x, y },
+        origin: { x: Math.min(x1, x2), y: Math.min(y1, y2) },
         size: {
-          width: Math.ceil(Math.abs(right - left)),
-          height: Math.ceil(Math.abs(top - bottom)),
+          width: Math.max(1, Math.abs(x2 - x1)),
+          height: Math.max(1, Math.abs(y2 - y1)),
         },
       };
-      const existing = mcidMap.get(mcid);
-      if (existing) {
-        existing.text += text;
-        existing.rect = existing.rect ? unionRect(existing.rect, rect) : rect;
-      } else {
-        mcidMap.set(mcid, { text, rect });
-      }
+
+      entry.rect = entry.rect ? unionRect(entry.rect, rect) : rect;
+
     };
 
     const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
     for (let i = 0; i < objectCount; i++) {
       const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
       scanObject(objPtr);
+    }
+
+    const readFontInfo = (charIndex: number): PdfStructElementFont | undefined => {
+      let family: string | undefined;
+      const fontNameLength = this.pdfiumModule.FPDFText_GetFontInfo(textPagePtr, charIndex, 0, 0, 0);
+      if (fontNameLength > 0) {
+        const bytes = fontNameLength + 1; // include NIL
+        const textBufferPtr = this.memoryManager.malloc(bytes);
+        const flagsPtr = this.memoryManager.malloc(4);
+        this.pdfiumModule.FPDFText_GetFontInfo(
+          textPagePtr,
+          charIndex,
+          textBufferPtr,
+          bytes,
+          flagsPtr,
+        );
+        family = this.pdfiumModule.pdfium.UTF8ToString(textBufferPtr);
+        this.memoryManager.free(textBufferPtr);
+        this.memoryManager.free(flagsPtr);
+      }
+
+      const size = this.pdfiumModule.FPDFText_GetFontSize(textPagePtr, charIndex);
+      const fontSize = Number.isFinite(size) && size > 0 ? size : undefined;
+
+      if (!family && fontSize === undefined) {
+        return undefined;
+      }
+
+      return {
+        ...(family ? { family } : {}),
+        ...(fontSize !== undefined ? { size: fontSize } : {}),
+      };
+    };
+
+    const glyphCount = this.pdfiumModule.FPDFText_CountChars(textPagePtr);
+    for (let charIndex = 0; charIndex < glyphCount; charIndex++) {
+      const textObjPtr = this.pdfiumModule.FPDFText_GetTextObject(textPagePtr, charIndex) as number;
+      if (!textObjPtr) {
+        continue;
+      }
+
+      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(textObjPtr);
+      if (mcid < 0) {
+        continue;
+      }
+
+      const entry = ensureEntry(mcid);
+      const glyph = this.readGlyphInfo(page, pageCtx.pagePtr, textPagePtr, charIndex);
+
+      const glyphRect: Rect = {
+        origin: { x: glyph.origin.x, y: glyph.origin.y },
+        size: { width: glyph.size.width, height: glyph.size.height },
+      };
+
+      if (glyphRect.size.width > 0 && glyphRect.size.height > 0) {
+        entry.rect = entry.rect ? unionRect(entry.rect, glyphRect) : glyphRect;
+      }
+
+      const fontInfo = readFontInfo(charIndex);
+      const runKey = textObjPtr;
+      let run = entry.runs.get(runKey);
+      if (!run) {
+        run = { text: '', rect: null };
+        entry.runs.set(runKey, run);
+      }
+
+      if (glyphRect.size.width > 0 && glyphRect.size.height > 0) {
+        run.rect = run.rect ? unionRect(run.rect, glyphRect) : glyphRect;
+      }
+
+      if (!entry.font && fontInfo) {
+        entry.font = fontInfo;
+      }
+      if (!run.font && fontInfo) {
+        run.font = fontInfo;
+      }
+
+      const charCode =
+        glyph.charCode !== undefined
+          ? glyph.charCode
+          : this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
+      const char =
+        charCode && charCode > 0
+          ? String.fromCodePoint(charCode)
+          : glyph.isSpace
+          ? ' '
+          : '';
+
+      if (char) {
+        entry.text += char;
+        run.text += char;
+      }
+    }
+
+    const cloneRect = (rect: Rect | null): Rect => {
+      if (!rect) {
+        return {
+          origin: { x: 0, y: 0 },
+          size: { width: 0, height: 0 },
+        };
+      }
+      return {
+        origin: { x: rect.origin.x, y: rect.origin.y },
+        size: { width: rect.size.width, height: rect.size.height },
+      };
+    };
+
+    for (const [, info] of mcidMap) {
+      info.textRuns = Array.from(info.runs.values()).map((run) => ({
+        text: run.text,
+        rect: cloneRect(run.rect),
+        ...(run.font ? { font: { ...run.font } } : {}),
+      }));
+
+      if (!info.font) {
+        const runWithFont = info.textRuns.find((run) => run.font);
+        if (runWithFont?.font) {
+          info.font = { ...runWithFont.font };
+        }
+      }
     }
 
     const buildElement = (elPtr: number): PdfStructElement => {
@@ -8308,6 +8475,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const mcids: number[] = [];
       let rect: Rect | null = null;
       let text = '';
+      const textRuns: PdfStructElementTextRun[] = [];
+      let font: PdfStructElementFont | undefined;
       const seen = new Set<number>();
       for (let i = 0; i < mcidCount; i++) {
         const mcid = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdAtIndex(elPtr, i);
@@ -8318,9 +8487,23 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         mcids.push(mcid);
         const info = mcidMap.get(mcid);
         if (info) {
-          text += info.text;
+          if (info.text) {
+            text += info.text;
+          }
           if (info.rect) {
             rect = rect ? unionRect(rect, info.rect) : info.rect;
+          }
+          if (info.textRuns.length) {
+            for (const run of info.textRuns) {
+              textRuns.push({
+                text: run.text,
+                rect: cloneRect(run.rect),
+                ...(run.font ? { font: { ...run.font } } : {}),
+              });
+            }
+          }
+          if (!font && info.font) {
+            font = { ...info.font };
           }
         }
       }
@@ -8340,6 +8523,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         lang,
         rect: rect ?? { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } },
         attributes: {},
+        font,
+        textRuns,
         mcids,
         children,
       };

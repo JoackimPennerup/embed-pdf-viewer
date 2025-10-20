@@ -1,5 +1,22 @@
 import { Rect } from '@embedpdf/models';
 
+export interface StructElementFont {
+  family?: string;
+  size?: number;
+}
+
+export interface StructElementTextRun {
+  text: string;
+  rect: Rect;
+  font?: StructElementFont;
+}
+
+export interface StructElementGlyph {
+  char: string;
+  rect: Rect;
+  font?: StructElementFont;
+}
+
 export interface StructElement {
   tag: string;
   htmlTag: string;
@@ -7,6 +24,9 @@ export interface StructElement {
   rect: Rect;
   language?: string;
   attributes?: Record<string, string>;
+  font?: StructElementFont;
+  textRuns: StructElementTextRun[];
+  glyphs?: StructElementGlyph[];
   mcids: number[];
   children: StructElement[];
 }
