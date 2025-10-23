@@ -8234,6 +8234,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       pageBottom?: number;
       firstIndex?: number;
       lastIndex?: number;
+      angle?: number;
+      charCount: number;
     };
 
     type McidInfo = {
@@ -8244,6 +8246,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       runs: Map<number, McidRunAccumulator>;
     };
 
+    const GLOBAL_MCID = -1;
     const mcidMap = new Map<number, McidInfo>();
     const ensureEntry = (mcid: number): McidInfo => {
       let info = mcidMap.get(mcid);
@@ -8271,11 +8274,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         return;
       }
 
-      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
-      if (mcid < 0) {
-        return;
-      }
-
+      const mcidRaw = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
+      const mcid = mcidRaw >= 0 ? mcidRaw : GLOBAL_MCID;
       const entry = ensureEntry(mcid);
 
       const leftPtr = this.memoryManager.malloc(4);
@@ -8404,11 +8404,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       }
 
       const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(textObjPtr);
-      if (mcid < 0) {
-        continue;
-      }
-
-      const entry = ensureEntry(mcid);
+      const entry = ensureEntry(mcid >= 0 ? mcid : GLOBAL_MCID);
       const glyph = this.readGlyphInfo(page, pageCtx.pagePtr, textPagePtr, charIndex);
 
       const glyphRect: Rect = {
@@ -8424,7 +8420,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const runKey = textObjPtr;
       let run = entry.runs.get(runKey);
       if (!run) {
-        run = { text: '', rect: null, matrix: undefined };
+        run = { text: '', rect: null, matrix: undefined, charCount: 0 };
         entry.runs.set(runKey, run);
       }
 
@@ -8440,6 +8436,10 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
             f: this.pdfiumModule.pdfium.getValue(matrixPtr + 20, 'float'),
           };
           run.matrix = matrix;
+          const angle = Math.atan2(matrix.b, matrix.a);
+          if (Number.isFinite(angle)) {
+            run.angle = angle;
+          }
         }
         this.memoryManager.free(matrixPtr);
       }
@@ -8467,6 +8467,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       if (!run.font && fontInfo) {
         run.font = fontInfo;
       }
+
+      run.charCount += 1;
 
       const charCode =
         glyph.charCode !== undefined
@@ -8507,6 +8509,18 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const getBottom = (run: McidRunAccumulator) =>
       run.pageBottom ?? (run.rect ? run.rect.origin.y : 0);
     const getBaseline = (run: McidRunAccumulator) => getBottom(run);
+    const getAverageWidth = (run: McidRunAccumulator) => {
+      const width = getRight(run) - getLeft(run);
+      if (!Number.isFinite(width) || width <= 0) {
+        return undefined;
+      }
+      const divisor = run.charCount > 0 ? run.charCount : Math.max(run.text.length, 1);
+      if (!divisor) {
+        return undefined;
+      }
+      const avg = width / divisor;
+      return Number.isFinite(avg) && avg > 0 ? avg : undefined;
+    };
 
     const fontsEqual = (a?: PdfStructElementFont, b?: PdfStructElementFont): boolean => {
       if (!a && !b) return true;
@@ -8533,6 +8547,19 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const MERGE_Y_THRESHOLD = 0.2;
     const MERGE_BACKTRACK = 0.05;
 
+    const computeGapThreshold = (a: McidRunAccumulator, b: McidRunAccumulator) => {
+      const base = MERGE_GAP_THRESHOLD;
+      const sizeHint = Math.max(a.font?.size ?? 0, b.font?.size ?? 0);
+      const widthHint = Math.max(getAverageWidth(a) ?? 0, getAverageWidth(b) ?? 0);
+      const dynamic = Math.max(sizeHint * 0.25, widthHint * 0.8);
+      return Math.max(base, dynamic);
+    };
+
+    const computeBacktrack = (a: McidRunAccumulator, b: McidRunAccumulator) => {
+      const avg = Math.max(getAverageWidth(a) ?? 0, getAverageWidth(b) ?? 0);
+      return Math.max(MERGE_BACKTRACK, avg * 0.25);
+    };
+
     const cloneAccumulator = (run: McidRunAccumulator): McidRunAccumulator => ({
       text: run.text,
       rect: run.rect ? cloneRect(run.rect) : null,
@@ -8544,6 +8571,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       pageBottom: run.pageBottom,
       firstIndex: run.firstIndex,
       lastIndex: run.lastIndex,
+      angle: run.angle,
+      charCount: run.charCount,
     });
 
     const mergeRuns = (runs: McidRunAccumulator[]): McidRunAccumulator[] => {
@@ -8568,36 +8597,42 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const merged: McidRunAccumulator[] = [];
       for (const current of sorted) {
         const last = merged[merged.length - 1];
-        if (
-          last &&
-          fontsEqual(last.font, current.font) &&
-          Math.abs(getBaseline(last) - getBaseline(current)) <= MERGE_Y_THRESHOLD
-        ) {
-          const gap = getLeft(current) - getRight(last);
-          if (gap >= -MERGE_BACKTRACK && gap <= MERGE_GAP_THRESHOLD) {
-            last.text += current.text;
-            if (last.rect && current.rect) {
-              last.rect = unionRect(last.rect, current.rect);
-            } else if (!last.rect && current.rect) {
-              last.rect = cloneRect(current.rect);
-            }
-            const lastLeft = getLeft(last);
-            const lastRight = getRight(last);
-            const lastTop = getTop(last);
-            const lastBottom = getBottom(last);
-            const currentLeft = getLeft(current);
-            const currentRight = getRight(current);
-            const currentTop = getTop(current);
-            const currentBottom = getBottom(current);
+        if (last) {
+          const sameFont = fontsEqual(last.font, current.font);
+          const sameBaseline =
+            Math.abs(getBaseline(last) - getBaseline(current)) <= MERGE_Y_THRESHOLD;
+          const sameAngle =
+            last.angle === undefined ||
+            current.angle === undefined ||
+            Math.abs(last.angle - current.angle) <= 0.01;
+          if (sameFont && sameBaseline && sameAngle) {
+            const gap = getLeft(current) - getRight(last);
+            const gapThreshold = computeGapThreshold(last, current);
+            const backtrack = computeBacktrack(last, current);
+            if (gap >= -backtrack && gap <= gapThreshold) {
+              last.text += current.text;
+              if (last.rect && current.rect) {
+                last.rect = unionRect(last.rect, current.rect);
+              } else if (!last.rect && current.rect) {
+                last.rect = cloneRect(current.rect);
+              }
+              const lastLeft = getLeft(last);
+              const lastRight = getRight(last);
+              const lastTop = getTop(last);
+              const lastBottom = getBottom(last);
+              const currentLeft = getLeft(current);
+              const currentRight = getRight(current);
+              const currentTop = getTop(current);
+              const currentBottom = getBottom(current);
 
-            last.pageLeft = Math.min(lastLeft, currentLeft);
-            last.pageRight = Math.max(lastRight, currentRight);
-            last.pageTop = Math.max(lastTop, currentTop);
-            last.pageBottom = Math.min(lastBottom, currentBottom);
-            last.firstIndex =
-              last.firstIndex !== undefined && current.firstIndex !== undefined
-                ? Math.min(last.firstIndex, current.firstIndex)
-                : last.firstIndex ?? current.firstIndex;
+              last.pageLeft = Math.min(lastLeft, currentLeft);
+              last.pageRight = Math.max(lastRight, currentRight);
+              last.pageTop = Math.max(lastTop, currentTop);
+              last.pageBottom = Math.min(lastBottom, currentBottom);
+              last.firstIndex =
+                last.firstIndex !== undefined && current.firstIndex !== undefined
+                  ? Math.min(last.firstIndex, current.firstIndex)
+                  : last.firstIndex ?? current.firstIndex;
               last.lastIndex =
                 last.lastIndex !== undefined && current.lastIndex !== undefined
                   ? Math.max(last.lastIndex, current.lastIndex)
@@ -8608,11 +8643,13 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
               if (!last.matrix && current.matrix) {
                 last.matrix = { ...current.matrix };
               }
+              last.charCount += current.charCount;
               continue;
             }
           }
-          merged.push(current);
         }
+        merged.push(current);
+      }
       return merged;
     };
 
@@ -8718,6 +8755,27 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       if (childPtr) {
         elements.push(buildElement(childPtr));
       }
+    }
+
+    const globalInfo = mcidMap.get(GLOBAL_MCID);
+    if (globalInfo && (globalInfo.textRuns.length || globalInfo.text)) {
+      const rect = globalInfo.rect ? cloneRect(globalInfo.rect) : cloneRect(null);
+      elements.push({
+        tag: 'Span',
+        text: globalInfo.text,
+        rect,
+        lang: undefined,
+        attributes: { 'data-untagged': 'true' },
+        font: globalInfo.font ? { ...globalInfo.font } : undefined,
+        textRuns: globalInfo.textRuns.map((run) => ({
+          text: run.text,
+          rect: cloneRect(run.rect),
+          ...(run.font ? { font: { ...run.font } } : {}),
+          ...(run.matrix ? { matrix: { ...run.matrix } } : {}),
+        })),
+        mcids: [],
+        children: [],
+      });
     }
 
     this.pdfiumModule.FPDF_StructTree_Close(treePtr);
