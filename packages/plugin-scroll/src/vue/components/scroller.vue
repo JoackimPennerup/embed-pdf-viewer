@@ -95,7 +95,7 @@ const rootStyle = computed<StyleValue>(() => {
 
 <template>
   <!-- render nothing until both layout + registry exist -->
-  <div v-if="layout && registry" :style="rootStyle" v-bind="attrs">
+  <article v-if="layout && registry" :style="rootStyle" v-bind="attrs" role="document">
     <!-- leading spacer -->
     <div
       v-if="layout.strategy === 'horizontal'"
@@ -118,14 +118,15 @@ const rootStyle = computed<StyleValue>(() => {
     >
       <template v-for="item in layout.items" :key="item.pageNumbers[0]">
         <div :style="{ display: 'flex', justifyContent: 'center', gap: layout.pageGap + 'px' }">
-          <div
+          <section role="region" 
+                aria-label="{`Page ${layout.pageNumber}`}"
             v-for="pl in item.pageLayouts"
             :key="pl.pageNumber"
             :style="{ width: pl.rotatedWidth + 'px', height: pl.rotatedHeight + 'px' }"
           >
             <!-- 🔑 give the host app full control over page content -->
             <slot :page="pageSlotProps(pl)" />
-          </div>
+          </section>
         </div>
       </template>
     </div>
@@ -139,5 +140,5 @@ const rootStyle = computed<StyleValue>(() => {
 
     <!-- optional overlay components -->
     <component v-for="(el, i) in props.overlayElements" :is="el" :key="i" />
-  </div>
+  </article>
 </template>

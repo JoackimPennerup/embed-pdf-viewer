@@ -6,6 +6,7 @@ import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/react
 import { Scroller, ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/react';
 import { LoaderPluginPackage } from '@embedpdf/plugin-loader/react';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/react';
+import { A11yLayer, A11yPluginPackage } from '@embedpdf/plugin-a11y/react';
 import { TilingLayer, TilingPluginPackage } from '@embedpdf/plugin-tiling/react';
 import { MarqueeZoom, ZoomMode, ZoomPluginPackage } from '@embedpdf/plugin-zoom/react';
 import { SearchLayer, SearchPluginPackage } from '@embedpdf/plugin-search/react';
@@ -79,6 +80,7 @@ const plugins = [
     paddingY: 10,
   }),
   createPluginRegistration(SelectionPluginPackage),
+  createPluginRegistration(A11yPluginPackage, { debug: true }), // overlay toggled via `debug`
   createPluginRegistration(AnnotationPluginPackage),
   createPluginRegistration(RedactionPluginPackage),
 ];
@@ -233,16 +235,20 @@ function App() {
                               <RenderLayer
                                 pageIndex={pageIndex}
                                 style={{ pointerEvents: 'none' }}
+                                aria-hidden='true'
                               />
+                              <A11yLayer pageIndex={pageIndex} scale={scale} />
                               <TilingLayer
                                 pageIndex={pageIndex}
                                 scale={scale}
                                 style={{ pointerEvents: 'none' }}
+                                aria-hidden='true'
                               />
                               <SearchLayer
                                 pageIndex={pageIndex}
                                 scale={scale}
                                 style={{ pointerEvents: 'none' }}
+                                aria-hidden='true'
                               />
                               <MarqueeZoom pageIndex={pageIndex} scale={scale} />
                               <SelectionLayer pageIndex={pageIndex} scale={scale} />

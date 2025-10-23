@@ -2171,6 +2171,116 @@ export interface SearchAllPagesResult {
 }
 
 /**
+ * Structural element extracted from the PDF structure tree
+ *
+ * @public
+ */
+export interface PdfStructElement {
+  /**
+   * Tag name of the element
+   */
+  tag: string;
+  /**
+   * Text content of the element
+   */
+  text: string;
+  /**
+   * Language of the element, if specified
+   */
+  lang?: string;
+  /**
+   * Bounding rectangle of the element in device coordinates
+   */
+  rect: Rect;
+  /**
+   * Additional attributes of the element
+   */
+  attributes: Record<string, string>;
+  /**
+   * Font information typically associated with the element's text content
+   */
+  font?: PdfStructElementFont;
+  /**
+   * Text runs detected within the element
+   */
+  textRuns?: PdfStructElementTextRun[];
+  /**
+   * MCIDs referenced directly by this element
+   */
+  mcids: number[];
+  /**
+   * Child structural elements
+   */
+  children: PdfStructElement[];
+}
+
+/**
+ * Font information associated with structural text content
+ *
+ * @public
+ */
+export interface PdfStructElementFont {
+  /**
+   * Font family name as reported by PDFium
+   */
+  family?: string;
+  /**
+   * Nominal font size in points
+   */
+  size?: number;
+  /**
+   * Nominal font weight (per CSS numeric weights, e.g. 400, 700)
+   */
+  weight?: number;
+  /**
+   * Raw FontDescriptor flags (direct from PDF)
+   */
+  flags?: number;
+  /**
+   * Whether the font is marked as italic in the descriptor
+   */
+  italic?: boolean;
+}
+
+/**
+ * Text matrix describing the transform from text space to user space.
+ *
+ * @public
+ */
+export interface PdfTextMatrix {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+}
+
+/**
+ * Text run belonging to a structural element
+ *
+ * @public
+ */
+export interface PdfStructElementTextRun {
+  /**
+   * Raw text contained in the run
+   */
+  text: string;
+  /**
+   * Bounding rectangle of the run in device coordinates
+   */
+  rect: Rect;
+  /**
+   * Font information recorded for the run
+   */
+  font?: PdfStructElementFont;
+  /**
+   * Text matrix applied to the run (PDF text space to user space)
+   */
+  matrix?: PdfTextMatrix;
+}
+
+/**
  * Glyph object
  *
  * @public
@@ -2192,6 +2302,14 @@ export interface PdfGlyphObject {
    * Whether the glyph is a empty
    */
   isEmpty?: boolean;
+  /**
+   * Unicode code point mapped to this glyph
+   */
+  charCode?: number;
+  /**
+   * Bounding box of the glyph in page-user-space coordinates
+   */
+  pageBounds?: { left: number; right: number; top: number; bottom: number };
 }
 
 /**
@@ -2796,6 +2914,14 @@ export interface PdfEngine<T = Blob> {
    * @returns task contains the text rects or error
    */
   getPageTextRects: (doc: PdfDocumentObject, page: PdfPageObject) => PdfTask<PdfTextRectObject[]>;
+  /**
+   * Walk the tagged structure tree of the page and return structural elements
+   * preserving the hierarchy
+   * @param doc - pdf document
+   * @param page - pdf page
+   * @returns task that contains the structural elements
+   */
+  getStructTree?: (doc: PdfDocumentObject, page: PdfPageObject) => PdfTask<PdfStructElement[]>;
   /**
    * Search across all pages in the document
    * @param doc - pdf document

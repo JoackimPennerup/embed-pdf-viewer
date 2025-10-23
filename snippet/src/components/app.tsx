@@ -92,6 +92,7 @@ import {
   ZoomState,
 } from '@embedpdf/plugin-zoom/preact';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/preact';
+import { A11yLayer, A11yPluginPackage } from '@embedpdf/plugin-a11y/preact';
 import {
   Rotate,
   ROTATE_PLUGIN_ID,
@@ -2870,6 +2871,7 @@ export function PDFViewer({ config }: PDFViewerProps) {
           createPluginRegistration(RotatePluginPackage, pluginConfigs.rotate),
           createPluginRegistration(SearchPluginPackage),
           createPluginRegistration(SelectionPluginPackage),
+          createPluginRegistration(A11yPluginPackage),
           createPluginRegistration(TilingPluginPackage, pluginConfigs.tiling),
           createPluginRegistration(ThumbnailPluginPackage, pluginConfigs.thumbnail),
           createPluginRegistration(AnnotationPluginPackage),
@@ -2939,6 +2941,7 @@ export function PDFViewer({ config }: PDFViewerProps) {
                                         pageHeight={height}
                                         pageIndex={pageIndex}
                                       >
+                                        <A11yLayer pageIndex={pageIndex} scale={scale} />
                                         <RenderLayer
                                           pageIndex={pageIndex}
                                           className="pointer-events-none"

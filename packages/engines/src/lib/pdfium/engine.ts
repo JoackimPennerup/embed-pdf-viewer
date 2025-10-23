@@ -70,6 +70,10 @@ import {
   TextContext,
   PdfGlyphObject,
   PdfPageGeometry,
+  PdfStructElement,
+  PdfStructElementFont,
+  PdfStructElementTextRun,
+  PdfTextMatrix,
   PdfRun,
   toIntRect,
   Quad,
@@ -3809,7 +3813,9 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       y = 0,
       width = 0,
       height = 0,
-      isSpace = false;
+      isSpace = false,
+      charCode: number | undefined,
+      pageBounds: { left: number; right: number; top: number; bottom: number } | undefined;
 
     // ── 1) raw glyph bbox in                      page-user-space
     if (this.pdfiumModule.FPDFText_GetLooseCharBox(textPagePtr, charIndex, rectPtr)) {
@@ -3818,6 +3824,18 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const right = this.pdfiumModule.pdfium.getValue(rectPtr + 8, 'float');
       const bottom = this.pdfiumModule.pdfium.getValue(rectPtr + 12, 'float');
 
+      const uc = this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
+      if (uc >= 0) {
+        charCode = uc;
+        isSpace = uc === 32;
+      }
+
+      const minX = Math.min(left, right);
+      const maxX = Math.max(left, right);
+      const minY = Math.min(top, bottom);
+      const maxY = Math.max(top, bottom);
+      pageBounds = { left: minX, right: maxX, top: maxY, bottom: minY };
+
       if (left === right || top === bottom) {
         [rectPtr, dx1Ptr, dy1Ptr, dx2Ptr, dy2Ptr].forEach((p) => this.memoryManager.free(p));
 
@@ -3825,6 +3843,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
           origin: { x: 0, y: 0 },
           size: { width: 0, height: 0 },
           isEmpty: true,
+          ...(charCode !== undefined && { charCode }),
+          ...(pageBounds ? { pageBounds } : {}),
         };
       }
 
@@ -3865,8 +3885,6 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       height = Math.max(1, Math.abs(y2 - y1));
 
       // ── 3) extra flags ───────────────────────────────────────
-      const uc = this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
-      isSpace = uc === 32;
     }
 
     // ── free tmps ───────────────────────────────────────────────
@@ -3876,6 +3894,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       origin: { x, y },
       size: { width, height },
       ...(isSpace && { isSpace }),
+      ...(charCode !== undefined && { charCode }),
+      ...(pageBounds ? { pageBounds } : {}),
     };
   }
 
@@ -8168,6 +8188,541 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         error: error instanceof Error ? error.message : 'Unknown error during annotation removal',
       };
     }
+  }
+
+  /**
+   * Walk the tagged structure tree of a page and return a hierarchy of elements
+   * including tag name, text content, bounding rectangle and MCID references.
+   */
+  getStructTree(doc: PdfDocumentObject, page: PdfPageObject): PdfTask<PdfStructElement[]> {
+    this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getStructTree', doc, page);
+
+    const ctx = this.cache.getContext(doc.id);
+    if (!ctx) {
+      return PdfTaskHelper.resolve<PdfStructElement[]>([]);
+    }
+
+    const pageCtx = ctx.acquirePage(page.index);
+    const textPagePtr = pageCtx.getTextPage();
+    const treePtr = this.pdfiumModule.FPDF_StructTree_GetForPage(pageCtx.pagePtr);
+
+    if (!treePtr) {
+      pageCtx.release();
+      return PdfTaskHelper.resolve<PdfStructElement[]>([]);
+    }
+
+    // Merge two rectangles into a bounding box that covers both.
+    const unionRect = (a: Rect, b: Rect): Rect => {
+      const x1 = Math.min(a.origin.x, b.origin.x);
+      const y1 = Math.min(a.origin.y, b.origin.y);
+      const x2 = Math.max(a.origin.x + a.size.width, b.origin.x + b.size.width);
+      const y2 = Math.max(a.origin.y + a.size.height, b.origin.y + b.size.height);
+      return {
+        origin: { x: x1, y: y1 },
+        size: { width: x2 - x1, height: y2 - y1 },
+      };
+    };
+
+    type McidRunAccumulator = {
+      text: string;
+      rect: Rect | null;
+      font?: PdfStructElementFont;
+      matrix?: PdfTextMatrix;
+      pageLeft?: number;
+      pageRight?: number;
+      pageTop?: number;
+      pageBottom?: number;
+      firstIndex?: number;
+      lastIndex?: number;
+    };
+
+    type McidInfo = {
+      text: string;
+      rect: Rect | null;
+      font?: PdfStructElementFont;
+      textRuns: PdfStructElementTextRun[];
+      runs: Map<number, McidRunAccumulator>;
+    };
+
+    const mcidMap = new Map<number, McidInfo>();
+    const ensureEntry = (mcid: number): McidInfo => {
+      let info = mcidMap.get(mcid);
+      if (!info) {
+        info = {
+          text: '',
+          rect: null,
+          font: undefined,
+          textRuns: [],
+          runs: new Map<number, McidRunAccumulator>(),
+        };
+        mcidMap.set(mcid, info);
+      }
+      return info;
+    };
+
+    const scanObject = (objPtr: number) => {
+      const type = this.pdfiumModule.FPDFPageObj_GetType(objPtr);
+      if (type === PdfPageObjectType.FORM) {
+        const count = this.pdfiumModule.FPDFFormObj_CountObjects(objPtr);
+        for (let i = 0; i < count; i++) {
+          const childPtr = this.pdfiumModule.FPDFFormObj_GetObject(objPtr, i);
+          scanObject(childPtr);
+        }
+        return;
+      }
+
+      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(objPtr);
+      if (mcid < 0) {
+        return;
+      }
+
+      const entry = ensureEntry(mcid);
+
+      const leftPtr = this.memoryManager.malloc(4);
+      const bottomPtr = this.memoryManager.malloc(4);
+      const rightPtr = this.memoryManager.malloc(4);
+      const topPtr = this.memoryManager.malloc(4);
+      this.pdfiumModule.FPDFPageObj_GetBounds(objPtr, leftPtr, bottomPtr, rightPtr, topPtr);
+      const left = this.pdfiumModule.pdfium.getValue(leftPtr, 'float');
+      const bottom = this.pdfiumModule.pdfium.getValue(bottomPtr, 'float');
+      const right = this.pdfiumModule.pdfium.getValue(rightPtr, 'float');
+      const top = this.pdfiumModule.pdfium.getValue(topPtr, 'float');
+      this.memoryManager.free(leftPtr);
+      this.memoryManager.free(bottomPtr);
+      this.memoryManager.free(rightPtr);
+      this.memoryManager.free(topPtr);
+
+      const deviceXPtr = this.memoryManager.malloc(4);
+      const deviceYPtr = this.memoryManager.malloc(4);
+      const deviceX2Ptr = this.memoryManager.malloc(4);
+      const deviceY2Ptr = this.memoryManager.malloc(4);
+
+      this.pdfiumModule.FPDF_PageToDevice(
+        pageCtx.pagePtr,
+        0,
+        0,
+        page.size.width,
+        page.size.height,
+        0,
+        left,
+        top,
+        deviceXPtr,
+        deviceYPtr,
+      );
+      this.pdfiumModule.FPDF_PageToDevice(
+        pageCtx.pagePtr,
+        0,
+        0,
+        page.size.width,
+        page.size.height,
+        0,
+        right,
+        bottom,
+        deviceX2Ptr,
+        deviceY2Ptr,
+      );
+
+      const x1 = this.pdfiumModule.pdfium.getValue(deviceXPtr, 'i32');
+      const y1 = this.pdfiumModule.pdfium.getValue(deviceYPtr, 'i32');
+      const x2 = this.pdfiumModule.pdfium.getValue(deviceX2Ptr, 'i32');
+      const y2 = this.pdfiumModule.pdfium.getValue(deviceY2Ptr, 'i32');
+
+      this.memoryManager.free(deviceXPtr);
+      this.memoryManager.free(deviceYPtr);
+      this.memoryManager.free(deviceX2Ptr);
+      this.memoryManager.free(deviceY2Ptr);
+
+      const rect: Rect = {
+        origin: { x: Math.min(x1, x2), y: Math.min(y1, y2) },
+        size: {
+          width: Math.max(1, Math.abs(x2 - x1)),
+          height: Math.max(1, Math.abs(y2 - y1)),
+        },
+      };
+
+      entry.rect = entry.rect ? unionRect(entry.rect, rect) : rect;
+
+    };
+
+    const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
+    for (let i = 0; i < objectCount; i++) {
+      const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, i);
+      scanObject(objPtr);
+    }
+
+    const readFontInfo = (charIndex: number): PdfStructElementFont | undefined => {
+      let family: string | undefined;
+      let flags: number | undefined;
+      const fontNameLength = this.pdfiumModule.FPDFText_GetFontInfo(textPagePtr, charIndex, 0, 0, 0);
+      if (fontNameLength > 0) {
+        const bytes = fontNameLength + 1; // include NIL
+        const textBufferPtr = this.memoryManager.malloc(bytes);
+        const flagsPtr = this.memoryManager.malloc(4);
+        this.pdfiumModule.FPDFText_GetFontInfo(
+          textPagePtr,
+          charIndex,
+          textBufferPtr,
+          bytes,
+          flagsPtr,
+        );
+        family = this.pdfiumModule.pdfium.UTF8ToString(textBufferPtr);
+        flags = this.pdfiumModule.pdfium.getValue(flagsPtr, 'i32');
+        this.memoryManager.free(textBufferPtr);
+        this.memoryManager.free(flagsPtr);
+      }
+
+      const size = this.pdfiumModule.FPDFText_GetFontSize(textPagePtr, charIndex);
+      const fontSize = Number.isFinite(size) && size > 0 ? size : undefined;
+      const weightValue = this.pdfiumModule.FPDFText_GetFontWeight(textPagePtr, charIndex);
+      let fontWeight = Number.isFinite(weightValue) && weightValue > 0 ? weightValue : undefined;
+
+      const ITALIC_FLAGS = 0x20 | 0x40;
+      const FORCE_BOLD_FLAG = 0x100;
+      const italic = !!(flags && (flags & ITALIC_FLAGS));
+      if (flags && flags & FORCE_BOLD_FLAG) {
+        fontWeight = Math.max(fontWeight ?? 600, 600);
+      }
+
+      if (!family && fontSize === undefined && fontWeight === undefined && flags === undefined) {
+        return undefined;
+      }
+
+      return {
+        ...(family ? { family } : {}),
+        ...(fontSize !== undefined ? { size: fontSize } : {}),
+        ...(fontWeight !== undefined ? { weight: fontWeight } : {}),
+        ...(flags !== undefined ? { flags } : {}),
+        ...(italic ? { italic: true } : {}),
+      };
+    };
+
+    const glyphCount = this.pdfiumModule.FPDFText_CountChars(textPagePtr);
+    for (let charIndex = 0; charIndex < glyphCount; charIndex++) {
+      const textObjPtr = this.pdfiumModule.FPDFText_GetTextObject(textPagePtr, charIndex) as number;
+      if (!textObjPtr) {
+        continue;
+      }
+
+      const mcid = this.pdfiumModule.FPDFPageObj_GetMarkedContentID(textObjPtr);
+      if (mcid < 0) {
+        continue;
+      }
+
+      const entry = ensureEntry(mcid);
+      const glyph = this.readGlyphInfo(page, pageCtx.pagePtr, textPagePtr, charIndex);
+
+      const glyphRect: Rect = {
+        origin: { x: glyph.origin.x, y: glyph.origin.y },
+        size: { width: glyph.size.width, height: glyph.size.height },
+      };
+
+      if (glyphRect.size.width > 0 && glyphRect.size.height > 0) {
+        entry.rect = entry.rect ? unionRect(entry.rect, glyphRect) : glyphRect;
+      }
+
+      const fontInfo = readFontInfo(charIndex);
+      const runKey = textObjPtr;
+      let run = entry.runs.get(runKey);
+      if (!run) {
+        run = { text: '', rect: null, matrix: undefined };
+        entry.runs.set(runKey, run);
+      }
+
+      if (!run.matrix) {
+        const matrixPtr = this.memoryManager.malloc(4 * 6);
+        if (this.pdfiumModule.FPDFText_GetMatrix(textPagePtr, charIndex, matrixPtr)) {
+          const matrix: PdfTextMatrix = {
+            a: this.pdfiumModule.pdfium.getValue(matrixPtr, 'float'),
+            b: this.pdfiumModule.pdfium.getValue(matrixPtr + 4, 'float'),
+            c: this.pdfiumModule.pdfium.getValue(matrixPtr + 8, 'float'),
+            d: this.pdfiumModule.pdfium.getValue(matrixPtr + 12, 'float'),
+            e: this.pdfiumModule.pdfium.getValue(matrixPtr + 16, 'float'),
+            f: this.pdfiumModule.pdfium.getValue(matrixPtr + 20, 'float'),
+          };
+          run.matrix = matrix;
+        }
+        this.memoryManager.free(matrixPtr);
+      }
+
+      if (glyphRect.size.width > 0 && glyphRect.size.height > 0) {
+        run.rect = run.rect ? unionRect(run.rect, glyphRect) : glyphRect;
+      }
+
+      const bounds = glyph.pageBounds;
+      if (bounds) {
+        const { left, right, top, bottom } = bounds;
+        run.pageLeft = run.pageLeft === undefined ? left : Math.min(run.pageLeft, left);
+        run.pageRight = run.pageRight === undefined ? right : Math.max(run.pageRight, right);
+        run.pageTop = run.pageTop === undefined ? top : Math.max(run.pageTop, top);
+        run.pageBottom =
+          run.pageBottom === undefined ? bottom : Math.min(run.pageBottom, bottom);
+      }
+
+      run.firstIndex = run.firstIndex === undefined ? charIndex : Math.min(run.firstIndex, charIndex);
+      run.lastIndex = run.lastIndex === undefined ? charIndex : Math.max(run.lastIndex, charIndex);
+
+      if (!entry.font && fontInfo) {
+        entry.font = fontInfo;
+      }
+      if (!run.font && fontInfo) {
+        run.font = fontInfo;
+      }
+
+      const charCode =
+        glyph.charCode !== undefined
+          ? glyph.charCode
+          : this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
+      const char =
+        charCode && charCode > 0
+          ? String.fromCodePoint(charCode)
+          : glyph.isSpace
+          ? ' '
+          : '';
+
+      if (char) {
+        entry.text += char;
+        run.text += char;
+      }
+    }
+
+    const cloneRect = (rect: Rect | null): Rect => {
+      if (!rect) {
+        return {
+          origin: { x: 0, y: 0 },
+          size: { width: 0, height: 0 },
+        };
+      }
+      return {
+        origin: { x: rect.origin.x, y: rect.origin.y },
+        size: { width: rect.size.width, height: rect.size.height },
+      };
+    };
+
+    const getLeft = (run: McidRunAccumulator) =>
+      run.pageLeft ?? (run.rect ? run.rect.origin.x : 0);
+    const getRight = (run: McidRunAccumulator) =>
+      run.pageRight ?? (run.rect ? run.rect.origin.x + run.rect.size.width : getLeft(run));
+    const getTop = (run: McidRunAccumulator) =>
+      run.pageTop ?? (run.rect ? run.rect.origin.y + run.rect.size.height : 0);
+    const getBottom = (run: McidRunAccumulator) =>
+      run.pageBottom ?? (run.rect ? run.rect.origin.y : 0);
+    const getBaseline = (run: McidRunAccumulator) => getBottom(run);
+
+    const fontsEqual = (a?: PdfStructElementFont, b?: PdfStructElementFont): boolean => {
+      if (!a && !b) return true;
+      if (!a || !b) return false;
+      const famA = a.family?.toLowerCase() ?? '';
+      const famB = b.family?.toLowerCase() ?? '';
+      if (famA !== famB) return false;
+      if (a.size !== undefined && b.size !== undefined && Math.abs(a.size - b.size) > 0.01) {
+        return false;
+      }
+      if (a.weight !== undefined && b.weight !== undefined && a.weight !== b.weight) {
+        return false;
+      }
+      if ((a.weight === undefined) !== (b.weight === undefined)) {
+        return false;
+      }
+      if ((a.italic ?? false) !== (b.italic ?? false)) {
+        return false;
+      }
+      return true;
+    };
+
+    const MERGE_GAP_THRESHOLD = 0.2;
+    const MERGE_Y_THRESHOLD = 0.2;
+    const MERGE_BACKTRACK = 0.05;
+
+    const cloneAccumulator = (run: McidRunAccumulator): McidRunAccumulator => ({
+      text: run.text,
+      rect: run.rect ? cloneRect(run.rect) : null,
+      font: run.font ? { ...run.font } : undefined,
+      matrix: run.matrix ? { ...run.matrix } : undefined,
+      pageLeft: run.pageLeft,
+      pageRight: run.pageRight,
+      pageTop: run.pageTop,
+      pageBottom: run.pageBottom,
+      firstIndex: run.firstIndex,
+      lastIndex: run.lastIndex,
+    });
+
+    const mergeRuns = (runs: McidRunAccumulator[]): McidRunAccumulator[] => {
+      if (!runs.length) {
+        return [];
+      }
+      const sorted = runs
+        .slice()
+        .sort((a, b) => {
+          const aIdx = a.firstIndex ?? Number.MAX_SAFE_INTEGER;
+          const bIdx = b.firstIndex ?? Number.MAX_SAFE_INTEGER;
+          if (aIdx !== bIdx) return aIdx - bIdx;
+          const aBaseline = getBaseline(a);
+          const bBaseline = getBaseline(b);
+          if (Math.abs(aBaseline - bBaseline) > MERGE_Y_THRESHOLD) {
+            return aBaseline - bBaseline;
+          }
+          return getLeft(a) - getLeft(b);
+        })
+        .map(cloneAccumulator);
+
+      const merged: McidRunAccumulator[] = [];
+      for (const current of sorted) {
+        const last = merged[merged.length - 1];
+        if (
+          last &&
+          fontsEqual(last.font, current.font) &&
+          Math.abs(getBaseline(last) - getBaseline(current)) <= MERGE_Y_THRESHOLD
+        ) {
+          const gap = getLeft(current) - getRight(last);
+          if (gap >= -MERGE_BACKTRACK && gap <= MERGE_GAP_THRESHOLD) {
+            last.text += current.text;
+            if (last.rect && current.rect) {
+              last.rect = unionRect(last.rect, current.rect);
+            } else if (!last.rect && current.rect) {
+              last.rect = cloneRect(current.rect);
+            }
+            const lastLeft = getLeft(last);
+            const lastRight = getRight(last);
+            const lastTop = getTop(last);
+            const lastBottom = getBottom(last);
+            const currentLeft = getLeft(current);
+            const currentRight = getRight(current);
+            const currentTop = getTop(current);
+            const currentBottom = getBottom(current);
+
+            last.pageLeft = Math.min(lastLeft, currentLeft);
+            last.pageRight = Math.max(lastRight, currentRight);
+            last.pageTop = Math.max(lastTop, currentTop);
+            last.pageBottom = Math.min(lastBottom, currentBottom);
+            last.firstIndex =
+              last.firstIndex !== undefined && current.firstIndex !== undefined
+                ? Math.min(last.firstIndex, current.firstIndex)
+                : last.firstIndex ?? current.firstIndex;
+              last.lastIndex =
+                last.lastIndex !== undefined && current.lastIndex !== undefined
+                  ? Math.max(last.lastIndex, current.lastIndex)
+                  : last.lastIndex ?? current.lastIndex;
+              if (!last.font && current.font) {
+                last.font = { ...current.font };
+              }
+              if (!last.matrix && current.matrix) {
+                last.matrix = { ...current.matrix };
+              }
+              continue;
+            }
+          }
+          merged.push(current);
+        }
+      return merged;
+    };
+
+    for (const [, info] of mcidMap) {
+      const mergedRuns = mergeRuns(Array.from(info.runs.values()));
+      info.textRuns = mergedRuns.map((run) => ({
+        text: run.text,
+        rect: cloneRect(run.rect),
+        ...(run.font ? { font: { ...run.font } } : {}),
+        ...(run.matrix ? { matrix: { ...run.matrix } } : {}),
+      }));
+
+      if (!info.font) {
+        const runWithFont = mergedRuns.find((run) => run.font);
+        if (runWithFont?.font) {
+          info.font = { ...runWithFont.font };
+        }
+      }
+    }
+
+    const buildElement = (elPtr: number): PdfStructElement => {
+      const tagLen = this.pdfiumModule.FPDF_StructElement_GetType(elPtr, 0, 0);
+      const tagPtr = this.memoryManager.malloc(tagLen);
+      this.pdfiumModule.FPDF_StructElement_GetType(elPtr, tagPtr, tagLen);
+      const tag = this.pdfiumModule.pdfium.UTF16ToString(tagPtr);
+      this.memoryManager.free(tagPtr);
+
+      const langLen = this.pdfiumModule.FPDF_StructElement_GetLang(elPtr, 0, 0);
+      let lang: string | undefined;
+      if (langLen > 0) {
+        const langPtr = this.memoryManager.malloc(langLen);
+        this.pdfiumModule.FPDF_StructElement_GetLang(elPtr, langPtr, langLen);
+        lang = this.pdfiumModule.pdfium.UTF16ToString(langPtr);
+        this.memoryManager.free(langPtr);
+      } else {
+        // fallback on document language
+      }
+
+      const mcidCount = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdCount(elPtr);
+      const mcids: number[] = [];
+      let rect: Rect | null = null;
+      let text = '';
+      const textRuns: PdfStructElementTextRun[] = [];
+      let font: PdfStructElementFont | undefined;
+      const seen = new Set<number>();
+      for (let i = 0; i < mcidCount; i++) {
+        const mcid = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdAtIndex(elPtr, i);
+        if (seen.has(mcid)) {
+          continue;
+        }
+        seen.add(mcid);
+        mcids.push(mcid);
+        const info = mcidMap.get(mcid);
+        if (info) {
+          if (info.text) {
+            text += info.text;
+          }
+          if (info.rect) {
+            rect = rect ? unionRect(rect, info.rect) : info.rect;
+          }
+          if (info.textRuns.length) {
+            for (const run of info.textRuns) {
+              textRuns.push({
+                text: run.text,
+                rect: cloneRect(run.rect),
+                ...(run.font ? { font: { ...run.font } } : {}),
+                ...(run.matrix ? { matrix: { ...run.matrix } } : {}),
+              });
+            }
+          }
+          if (!font && info.font) {
+            font = { ...info.font };
+          }
+        }
+      }
+
+      const childCount = this.pdfiumModule.FPDF_StructElement_CountChildren(elPtr);
+      const children: PdfStructElement[] = [];
+      for (let i = 0; i < childCount; i++) {
+        const childPtr = this.pdfiumModule.FPDF_StructElement_GetChildAtIndex(elPtr, i);
+        if (childPtr) {
+          children.push(buildElement(childPtr));
+        }
+      }
+
+      return {
+        tag,
+        text,
+        lang,
+        rect: rect ?? { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } },
+        attributes: {},
+        font,
+        textRuns,
+        mcids,
+        children,
+      };
+    };
+
+    const elements: PdfStructElement[] = [];
+    const childCount = this.pdfiumModule.FPDF_StructTree_CountChildren(treePtr);
+    for (let i = 0; i < childCount; i++) {
+      const childPtr = this.pdfiumModule.FPDF_StructTree_GetChildAtIndex(treePtr, i);
+      if (childPtr) {
+        elements.push(buildElement(childPtr));
+      }
+    }
+
+    this.pdfiumModule.FPDF_StructTree_Close(treePtr);
+    pageCtx.release();
+    return PdfTaskHelper.resolve(elements);
   }
 
   /**

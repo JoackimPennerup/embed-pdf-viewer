@@ -84,6 +84,7 @@ export function RenderLayer({
       {imageUrl && (
         <img
           src={imageUrl}
+          aria-hidden="true"
           onLoad={handleImageLoad}
           {...props}
           style={{

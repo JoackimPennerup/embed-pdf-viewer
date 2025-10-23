@@ -6,6 +6,7 @@ import { LoaderPluginPackage } from '@embedpdf/plugin-loader/vue';
 import { Viewport, ViewportPluginPackage } from '@embedpdf/plugin-viewport/vue';
 import { Scroller, ScrollPluginPackage, ScrollStrategy } from '@embedpdf/plugin-scroll/vue';
 import { RenderLayer, RenderPluginPackage } from '@embedpdf/plugin-render/vue';
+import { A11yLayer, A11yPluginPackage } from '@embedpdf/plugin-a11y/vue';
 import { TilingLayer, TilingPluginPackage } from '@embedpdf/plugin-tiling/vue';
 import { SelectionLayer, SelectionPluginPackage } from '@embedpdf/plugin-selection/vue';
 import {
@@ -122,6 +123,7 @@ const handleInitialized = async (registry: PluginRegistry) => {
           pageGap: 10,
         }),
         createPluginRegistration(RenderPluginPackage),
+        createPluginRegistration(A11yPluginPackage),
         createPluginRegistration(TilingPluginPackage, {
           tileSize: 768,
           overlapPx: 2.5,
@@ -200,6 +202,7 @@ const handleInitialized = async (registry: PluginRegistry) => {
                               :scale="page.scale"
                               style="pointer-events: none"
                             />
+                            <A11yLayer :page-index="page.pageIndex" :scale="page.scale"></A11yLayer>
                             <MarqueeZoom :page-index="page.pageIndex" :scale="page.scale" />
                             <SearchLayer :page-index="page.pageIndex" :scale="page.scale" />
                             <AnnotationLayer

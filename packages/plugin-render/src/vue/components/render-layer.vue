@@ -112,6 +112,7 @@ function handleImageLoad() {
   <img
     v-if="imageUrl"
     :src="imageUrl"
+    aria-hidden="true"
     :style="{ width: '100%', height: '100%' }"
     @load="handleImageLoad"
   />

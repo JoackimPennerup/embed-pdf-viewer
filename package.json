@@ -52,9 +52,6 @@
   "pnpm": {
     "overrides": {
       "@types/node": "^22.0.0"
-    },
-    "patchedDependencies": {
-      "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
     }
   }
 }
