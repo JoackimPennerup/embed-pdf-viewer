@@ -41,7 +41,7 @@ export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProp
   const coreState = registry.getStore().getState();
 
   return (
-    <div
+    <article
       {...props}
       style={{
         width: `${scrollerLayout.totalWidth}px`,
@@ -69,7 +69,7 @@ export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProp
               }),
         }}
       />
-      <div
+      <div 
         style={{
           gap: scrollerLayout.pageGap,
           display: 'flex',
@@ -97,7 +97,7 @@ export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProp
             }}
           >
             {item.pageLayouts.map((layout) => (
-              <div
+              <section 
                 key={layout.pageNumber}
                 style={{
                   width: `${layout.rotatedWidth}px`,
@@ -110,7 +110,7 @@ export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProp
                   scale: coreState.core.scale,
                   document: coreState.core.document,
                 })}
-              </div>
+              </section>
             ))}
           </div>
         ))}
@@ -130,6 +130,6 @@ export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProp
         }}
       />
       {overlayElements}
-    </div>
+    </article>
   );
 }

@@ -53,6 +53,7 @@ onMounted(() => {
       :key="i"
       :class="run.className"
       :style="run.style"
+      role="presentation"
     >
       {{ run.text }}
     </span>

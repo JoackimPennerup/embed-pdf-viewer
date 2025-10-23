@@ -36,6 +36,7 @@ export function StructElementComponent({ element, scale, parentLanguage }: Props
             return fontClass ? `${fontClass} textrun` : 'textrun';
           })()}
           style={run.style}
+          role="presentation"
         >
           {run.text}
         </span>
