@@ -27,7 +27,7 @@ export function mapPdfTagToHtml(tag: string): string {
   return TAG_MAP[tag] ?? "span";
 }
 
-const A11yLayerClassName = "embedpdf-a11y-layer";
+export const A11yLayerClassName = "embedpdf-a11y-layer";
 const styleSheet = new CSSStyleSheet();
 styleSheet.replaceSync(`
   .${A11yLayerClassName}, .${A11yLayerClassName} * {
@@ -66,10 +66,10 @@ export function getFontClassName(
   fontWeight: number | undefined,
   italic: boolean | undefined,
 ): string | undefined {
-  const sizeKey = fontSize !== undefined ? fontSize.toFixed(2) : "0";
-  const weightKey = fontWeight !== undefined ? String(fontWeight) : "400";
-  const italicKey = italic ? "italic" : "normal";
-  const fontIdentifier = `${fontFamily || "default"}-${sizeKey}-${weightKey}-${italicKey}`;
+  const sizeKey = fontSize !== undefined ? fontSize.toFixed(2) : '0';
+  const weightKey = fontWeight !== undefined ? String(fontWeight) : '400';
+  const italicKey = italic ? 'italic' : 'normal';
+  const fontIdentifier = `${fontFamily || 'default'}-${sizeKey}-${weightKey}-${italicKey}`;
 
   const cached = fontClassNameMap.get(fontIdentifier);
   if (cached) {
@@ -89,11 +89,32 @@ export function getFontClassName(
     declarations.push(`font-weight: ${fontWeight};`);
   }
   if (italic) {
-    declarations.push("font-style: italic;");
+    declarations.push('font-style: italic;');
   }
 
-  styleSheet.insertRule(`.${A11yLayerClassName} .${className} { ${declarations.join(" ")} }`, styleSheet.cssRules.length);
+  styleSheet.insertRule(
+    `.${A11yLayerClassName} .${className} { ${declarations.join(' ')} }`,
+    styleSheet.cssRules.length,
+  );
   fontClassNameMap.set(fontIdentifier, className);
+  return className;
+}
+
+const lineHeightClassMap: Map<string, string> = new Map();
+export function getLineHeightClass(lineHeightPx: number | undefined): string | undefined {
+  if (!Number.isFinite(lineHeightPx) || lineHeightPx === undefined) {
+    return undefined;
+  }
+  const key = lineHeightPx.toFixed(2);
+  const cached = lineHeightClassMap.get(key);
+  if (cached) return cached;
+
+  const className = `lh-${lineHeightClassMap.size + 1}`;
+  styleSheet.insertRule(
+    `.${A11yLayerClassName} .${className} { line-height: ${lineHeightPx.toFixed(2)}px; }`,
+    styleSheet.cssRules.length,
+  );
+  lineHeightClassMap.set(key, className);
   return className;
 }
 

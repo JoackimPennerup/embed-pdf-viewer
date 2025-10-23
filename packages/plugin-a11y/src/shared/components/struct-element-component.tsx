@@ -1,7 +1,7 @@
 import type { StructElement as StructElementModel } from '@embedpdf/plugin-a11y';
-import { getFontClassName } from '../../lib/utils';
 import { useEffect, useRef } from 'react';
 import { computeStructElementViewModel } from './struct-element-viewmodel';
+import { A11yLayerClassName } from '../../lib/utils';
 
 interface Props {
   element: StructElementModel;
@@ -16,7 +16,7 @@ export function StructElementComponent({ element, scale, parentLanguage }: Props
   const Tag = viewModel.tagName as any;
 
   useEffect(() => {
-    if (elementRef.current != null && !elementRef.current.closest('.embedpdf-a11y-layer')) {
+    if (elementRef.current != null && !elementRef.current.closest('.' + A11yLayerClassName)) {
       console.error('StructElementComponent must be rendered within an A11yLayer component.');
     }
   });
@@ -26,15 +26,7 @@ export function StructElementComponent({ element, scale, parentLanguage }: Props
       {viewModel.textRuns.map((run, i) => (
         <span
           key={i}
-          className={(() => {
-            const fontClass = getFontClassName(
-              run.fontFamily,
-              run.fontSize,
-              run.fontWeight,
-              run.fontItalic,
-            );
-            return fontClass ? `${fontClass} textrun` : 'textrun';
-          })()}
+          className={run.className}
           style={run.style}
           role="presentation"
         >

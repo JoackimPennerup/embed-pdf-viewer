@@ -97,7 +97,8 @@ export function Scroller({ renderPage, overlayElements, ...props }: ScrollerProp
             }}
           >
             {item.pageLayouts.map((layout) => (
-              <section 
+              <section role="region" 
+                aria-label={`Page ${layout.pageNumber}`}
                 key={layout.pageNumber}
                 style={{
                   width: `${layout.rotatedWidth}px`,

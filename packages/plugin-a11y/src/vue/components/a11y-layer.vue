@@ -2,7 +2,7 @@
 import { ref, watchEffect, toRefs, useTemplateRef } from 'vue';
 import type { StructElement } from '@embedpdf/plugin-a11y';
 import { useA11yCapability } from '../hooks';
-import { adoptA11yLayerStyleSheet } from '../../lib/utils';
+import { A11yLayerClassName, adoptA11yLayerStyleSheet } from '../../lib/utils';
 import StructElementComponent from './struct-element-component.vue';
 
 const props = defineProps<{ pageIndex: number; scale: number }>();
@@ -26,6 +26,7 @@ watchEffect(() => {
     const rootNode = layerRef.value.getRootNode();
     const host = rootNode instanceof ShadowRoot ? rootNode : document;
     adoptA11yLayerStyleSheet(host);
+    layerRef.value.className = provides.value.getClassNames();
   }
 });
 </script>
@@ -34,8 +35,8 @@ watchEffect(() => {
   <div
     v-if="elements.length"
     ref="layer"
-    class="embedpdf-a11y-layer"
-    :style="{ '--scale': scale }"
+    class="{A11yLayerClassName}"
+    :style="{ '--scale': scale}"
   >
     <StructElementComponent
       v-for="(el, i) in elements"

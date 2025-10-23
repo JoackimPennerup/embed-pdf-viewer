@@ -25,7 +25,16 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
   protected buildCapability(): A11yCapability {
     return {
       getStructElements: this.getStructElements.bind(this),
+      getClassNames: this.getClassNames.bind(this),
     };
+  }
+
+  private getClassNames(): string {
+    const classes = ['embedpdf-a11y-layer'];
+    if (this.config.debug) {
+      classes.push('embedpdf-a11y-debug');
+    }
+    return classes.join(' ');
   }
 
   private async getStructElements(pageIndex: number): Promise<StructElement[]> {

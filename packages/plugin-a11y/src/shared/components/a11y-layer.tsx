@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from '@framework';
 
 import { useA11yCapability } from '../hooks';
 import { StructElementComponent } from './struct-element-component';
-import { adoptA11yLayerStyleSheet } from '../../lib/utils';
+import { A11yLayerClassName, adoptA11yLayerStyleSheet } from '../../lib/utils';
 
 type Props = {
   pageIndex: number;
@@ -12,6 +12,7 @@ type Props = {
 
 export function A11yLayer({ pageIndex, scale }: Props) {
   const { provides } = useA11yCapability();
+  const [className, setClassName] = useState<string>(A11yLayerClassName); 
   const [elements, setElements] = useState<StructElementModel[]>([]);
   const layerRef = useRef<HTMLDivElement>(null);
 
@@ -21,6 +22,7 @@ export function A11yLayer({ pageIndex, scale }: Props) {
       .getStructElements(pageIndex)
       .then(setElements)
       .catch(() => setElements([]));
+    setClassName(provides.getClassNames());
   }, [provides, pageIndex]);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export function A11yLayer({ pageIndex, scale }: Props) {
   };
 
   return (
-    <div className="embedpdf-a11y-layer" ref={layerRef} style={style as React.CSSProperties}>
+    <div className={className} ref={layerRef} style={style}>
       {elements.map((el, i) => (
         <StructElementComponent key={i} element={el} scale={scale} />
       ))}

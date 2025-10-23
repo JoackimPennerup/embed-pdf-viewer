@@ -34,6 +34,7 @@ export interface A11yPluginConfig {
 
 export interface A11yCapability {
   getStructElements: (pageIndex: number) => Promise<StructElement[]>;
+  getClassNames: () => string;
 }
 
 export interface A11yState {}

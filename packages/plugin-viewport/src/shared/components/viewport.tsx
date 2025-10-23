@@ -20,7 +20,8 @@ export function Viewport({ children, ...props }: ViewportProps) {
 
   const { style, ...restProps } = props;
   return (
-    <div
+    <div  
+      tabIndex={0}
       {...restProps}
       ref={viewportRef}
       style={{
