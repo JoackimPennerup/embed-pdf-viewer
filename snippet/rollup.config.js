@@ -24,8 +24,9 @@ export default [
     output: {
       dir: 'dist',
       format: 'esm',
-      sourcemap: false,
+      sourcemap: true,
     },
+    treeshake: isDev ? false : undefined,
     plugins: [
       copy({
         targets: [
@@ -74,12 +75,16 @@ export default [
         inject: false,
         plugins: [autoprefixer(), tailwindcss()],
       }),
-      typescript(),
+      typescript({
+        sourceMap: true,
+        inlineSources: true,
+      }),
       babel({
         exclude: 'node_modules/**',
         extensions: ['.js', '.jsx', '.ts', '.tsx'],
         babelHelpers: 'bundled',
         babelrc: true,
+        sourceMaps: true,
       }),
       isDev &&
         serve({
@@ -95,10 +100,11 @@ export default [
             'Access-Control-Allow-Origin': '*',
           },
         }),
-      terser({
-        module: true,
-        compress: isDev ? false : true,
-      }),
+      !isDev &&
+        terser({
+          module: true,
+          compress: true,
+        }),
       isDev &&
         livereload({
           watch: 'dist',

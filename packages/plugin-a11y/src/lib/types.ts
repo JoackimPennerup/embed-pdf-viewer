@@ -1,20 +1,18 @@
-import { Rect } from '@embedpdf/models';
+import { Rect, PdfTextMatrix } from '@embedpdf/models';
 
 export interface StructElementFont {
   family?: string;
   size?: number;
+  weight?: number;
+  flags?: number;
+  italic?: boolean;
 }
 
 export interface StructElementTextRun {
   text: string;
   rect: Rect;
   font?: StructElementFont;
-}
-
-export interface StructElementGlyph {
-  char: string;
-  rect: Rect;
-  font?: StructElementFont;
+  matrix?: PdfTextMatrix;
 }
 
 export interface StructElement {
@@ -26,7 +24,6 @@ export interface StructElement {
   attributes?: Record<string, string>;
   font?: StructElementFont;
   textRuns: StructElementTextRun[];
-  glyphs?: StructElementGlyph[];
   mcids: number[];
   children: StructElement[];
 }

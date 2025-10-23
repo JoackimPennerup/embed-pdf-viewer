@@ -5,7 +5,6 @@ import {
   A11yPluginConfig,
   StructElement,
   StructElementFont,
-  StructElementGlyph,
   StructElementTextRun,
 } from './types';
 import { mapPdfTagToHtml } from './utils';
@@ -64,25 +63,45 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
       if (typeof font.size === 'number' && !Number.isNaN(font.size)) {
         mapped.size = font.size;
       }
+      if (typeof font.weight === 'number' && !Number.isNaN(font.weight)) {
+        mapped.weight = font.weight;
+      }
+      if (typeof font.flags === 'number' && Number.isFinite(font.flags)) {
+        mapped.flags = font.flags;
+      }
+      if (typeof font.italic === 'boolean') {
+        mapped.italic = font.italic;
+      }
       return Object.keys(mapped).length ? mapped : undefined;
     };
 
     const mapElement = (el: any): StructElement => {
       const textRuns: StructElementTextRun[] = Array.isArray(el.textRuns)
-        ? el.textRuns.map((run: any) => ({
-            text: typeof run?.text === 'string' ? run.text : '',
-            rect: cloneRect(run?.rect),
-            font: mapFont(run?.font),
-          }))
+        ? el.textRuns.map((run: any) => {
+            const rawMatrix = run?.matrix;
+            const hasMatrix =
+              rawMatrix &&
+              typeof rawMatrix === 'object' &&
+              ['a', 'b', 'c', 'd', 'e', 'f'].every(
+                (key) => typeof rawMatrix[key] === 'number' && Number.isFinite(rawMatrix[key]),
+              );
+            return {
+              text: typeof run?.text === 'string' ? run.text : '',
+              rect: cloneRect(run?.rect),
+              font: mapFont(run?.font),
+              matrix: hasMatrix
+                ? {
+                    a: Number(rawMatrix.a),
+                    b: Number(rawMatrix.b),
+                    c: Number(rawMatrix.c),
+                    d: Number(rawMatrix.d),
+                    e: Number(rawMatrix.e),
+                    f: Number(rawMatrix.f),
+                  }
+                : undefined,
+            };
+          })
         : [];
-
-      const glyphs: StructElementGlyph[] | undefined = Array.isArray(el.glyphs)
-        ? el.glyphs.map((glyph: any) => ({
-            char: typeof glyph?.char === 'string' ? glyph.char : '',
-            rect: cloneRect(glyph?.rect),
-            font: mapFont(glyph?.font),
-          }))
-        : undefined;
 
       return {
         tag: el.tag,
@@ -93,7 +112,6 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
         attributes: el.attributes || {},
         font: mapFont(el.font),
         textRuns,
-        ...(glyphs ? { glyphs } : {}),
         mcids: Array.isArray(el.mcids) ? el.mcids : [],
         children: Array.isArray(el.children) ? el.children.map(mapElement) : [],
       };

@@ -1,4 +1,7 @@
 import type { StructElement as StructElementModel } from '@embedpdf/plugin-a11y';
+import { getFontClassName } from '../../lib/utils';
+import { useEffect, useRef } from 'react';
+import { computeStructElementViewModel } from './struct-element-viewmodel';
 
 interface Props {
   element: StructElementModel;
@@ -7,37 +10,42 @@ interface Props {
 }
 
 export function StructElementComponent({ element, scale, parentLanguage }: Props) {
-  const Tag = (element.htmlTag || 'span') as any;
-  const hasText = element.text.trim().length > 0;
+  const elementRef = useRef<HTMLElement>(null);
 
-  const {
-    origin: { x, y },
-    size: { width: rectWidth, height: rectHeight },
-  } = element.rect;
+  const viewModel = computeStructElementViewModel(element, scale, parentLanguage);
+  const Tag = viewModel.tagName as any;
 
-  const style = {
-    position: 'absolute' as const,
-    ...(x !== 0 && { left: x * scale }),
-    ...(y !== 0 && { top: y * scale }),
-    ...(rectWidth !== 0 && { width: rectWidth * scale }),
-    ...(rectHeight !== 0 && { height: rectHeight * scale }),
-  };
-
-  const attrs: Record<string, string> = { ...(element.attributes ?? {}) };
-  const ownLang = element.language;
-  if (ownLang && ownLang !== parentLanguage) {
-    attrs.lang = ownLang;
-  }
+  useEffect(() => {
+    if (elementRef.current != null && !elementRef.current.closest('.embedpdf-a11y-layer')) {
+      console.error('StructElementComponent must be rendered within an A11yLayer component.');
+    }
+  });
 
   return (
-    <Tag {...attrs} style={style} data-pdftag={element.tag}>
-      {hasText ? element.text : null}
+    <Tag {...viewModel.attrs} style={viewModel.elementStyle} data-pdftag={element.tag} ref={elementRef}>
+      {viewModel.textRuns.map((run, i) => (
+        <span
+          key={i}
+          className={(() => {
+            const fontClass = getFontClassName(
+              run.fontFamily,
+              run.fontSize,
+              run.fontWeight,
+              run.fontItalic,
+            );
+            return fontClass ? `${fontClass} textrun` : 'textrun';
+          })()}
+          style={run.style}
+        >
+          {run.text}
+        </span>
+      ))}
       {element.children.map((child, i) => (
         <StructElementComponent
           key={i}
           element={child}
           scale={scale}
-          parentLanguage={ownLang ?? parentLanguage}
+          parentLanguage={viewModel.nextParentLanguage}
         />
       ))}
     </Tag>

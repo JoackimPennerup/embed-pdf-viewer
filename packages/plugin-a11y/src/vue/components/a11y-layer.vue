@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, watchEffect, toRefs } from 'vue';
+import { ref, watchEffect, toRefs, useTemplateRef } from 'vue';
 import type { StructElement } from '@embedpdf/plugin-a11y';
 import { useA11yCapability } from '../hooks';
+import { adoptA11yLayerStyleSheet } from '../../lib/utils';
+import StructElementComponent from './struct-element-component.vue';
 
 const props = defineProps<{ pageIndex: number; scale: number }>();
 const { pageIndex, scale } = toRefs(props);
 
 const { provides } = useA11yCapability();
 const elements = ref<StructElement[]>([]);
+const layerRef = useTemplateRef('layer');
 
 watchEffect(() => {
   if (!provides.value) {
@@ -18,26 +21,27 @@ watchEffect(() => {
     .getStructElements(pageIndex.value)
     .then((els) => (elements.value = els))
     .catch(() => (elements.value = []));
+
+  if (layerRef.value != null) {
+    const rootNode = layerRef.value.getRootNode();
+    const host = rootNode instanceof ShadowRoot ? rootNode : document;
+    adoptA11yLayerStyleSheet(host);
+  }
 });
 </script>
 
 <template>
-  <div v-if="elements.length" style="position: absolute; left: 0; top: 0">
-    <component
+  <div
+    v-if="elements.length"
+    ref="layer"
+    class="embedpdf-a11y-layer"
+    :style="{ '--scale': scale }"
+  >
+    <StructElementComponent
       v-for="(el, i) in elements"
-      :is="el.htmlTag"
       :key="i"
-      :style="{
-        position: 'absolute',
-        left: el.rect.origin.x * scale + 'px',
-        top: el.rect.origin.y * scale + 'px',
-        width: el.rect.size.width * scale + 'px',
-        height: el.rect.size.height * scale + 'px'
-      }"
-      :role="el.attributes?.role"
-      :aria-label="el.text"
-    >
-      {{ el.text }}
-    </component>
+      :element="el"
+      :scale="scale"
+    />
   </div>
 </template>

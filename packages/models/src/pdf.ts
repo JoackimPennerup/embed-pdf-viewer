@@ -2205,10 +2205,6 @@ export interface PdfStructElement {
    */
   textRuns?: PdfStructElementTextRun[];
   /**
-   * Individual glyphs that belong to this element
-   */
-  glyphs?: PdfStructElementGlyph[];
-  /**
    * MCIDs referenced directly by this element
    */
   mcids: number[];
@@ -2232,6 +2228,32 @@ export interface PdfStructElementFont {
    * Nominal font size in points
    */
   size?: number;
+  /**
+   * Nominal font weight (per CSS numeric weights, e.g. 400, 700)
+   */
+  weight?: number;
+  /**
+   * Raw FontDescriptor flags (direct from PDF)
+   */
+  flags?: number;
+  /**
+   * Whether the font is marked as italic in the descriptor
+   */
+  italic?: boolean;
+}
+
+/**
+ * Text matrix describing the transform from text space to user space.
+ *
+ * @public
+ */
+export interface PdfTextMatrix {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
 }
 
 /**
@@ -2252,26 +2274,10 @@ export interface PdfStructElementTextRun {
    * Font information recorded for the run
    */
   font?: PdfStructElementFont;
-}
-
-/**
- * Glyph bounding box and styling info belonging to a structural element
- *
- * @public
- */
-export interface PdfStructElementGlyph {
   /**
-   * Unicode character represented by the glyph
+   * Text matrix applied to the run (PDF text space to user space)
    */
-  char: string;
-  /**
-   * Bounding rectangle of the glyph in device coordinates
-   */
-  rect: Rect;
-  /**
-   * Font information recorded for the glyph
-   */
-  font?: PdfStructElementFont;
+  matrix?: PdfTextMatrix;
 }
 
 /**
@@ -2300,6 +2306,10 @@ export interface PdfGlyphObject {
    * Unicode code point mapped to this glyph
    */
   charCode?: number;
+  /**
+   * Bounding box of the glyph in page-user-space coordinates
+   */
+  pageBounds?: { left: number; right: number; top: number; bottom: number };
 }
 
 /**
