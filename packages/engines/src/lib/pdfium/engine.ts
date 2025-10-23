@@ -8339,9 +8339,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
           height: Math.max(1, Math.abs(y2 - y1)),
         },
       };
-
       entry.rect = entry.rect ? unionRect(entry.rect, rect) : rect;
-
     };
 
     const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
@@ -8353,7 +8351,13 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const readFontInfo = (charIndex: number): PdfStructElementFont | undefined => {
       let family: string | undefined;
       let flags: number | undefined;
-      const fontNameLength = this.pdfiumModule.FPDFText_GetFontInfo(textPagePtr, charIndex, 0, 0, 0);
+      const fontNameLength = this.pdfiumModule.FPDFText_GetFontInfo(
+        textPagePtr,
+        charIndex,
+        0,
+        0,
+        0,
+      );
       if (fontNameLength > 0) {
         const bytes = fontNameLength + 1; // include NIL
         const textBufferPtr = this.memoryManager.malloc(bytes);
@@ -8378,7 +8382,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
       const ITALIC_FLAGS = 0x20 | 0x40;
       const FORCE_BOLD_FLAG = 0x100;
-      const italic = !!(flags && (flags & ITALIC_FLAGS));
+      const italic = !!(flags && flags & ITALIC_FLAGS);
       if (flags && flags & FORCE_BOLD_FLAG) {
         fontWeight = Math.max(fontWeight ?? 600, 600);
       }
@@ -8454,11 +8458,11 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         run.pageLeft = run.pageLeft === undefined ? left : Math.min(run.pageLeft, left);
         run.pageRight = run.pageRight === undefined ? right : Math.max(run.pageRight, right);
         run.pageTop = run.pageTop === undefined ? top : Math.max(run.pageTop, top);
-        run.pageBottom =
-          run.pageBottom === undefined ? bottom : Math.min(run.pageBottom, bottom);
+        run.pageBottom = run.pageBottom === undefined ? bottom : Math.min(run.pageBottom, bottom);
       }
 
-      run.firstIndex = run.firstIndex === undefined ? charIndex : Math.min(run.firstIndex, charIndex);
+      run.firstIndex =
+        run.firstIndex === undefined ? charIndex : Math.min(run.firstIndex, charIndex);
       run.lastIndex = run.lastIndex === undefined ? charIndex : Math.max(run.lastIndex, charIndex);
 
       if (!entry.font && fontInfo) {
@@ -8475,11 +8479,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
           ? glyph.charCode
           : this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
       const char =
-        charCode && charCode > 0
-          ? String.fromCodePoint(charCode)
-          : glyph.isSpace
-          ? ' '
-          : '';
+        charCode && charCode > 0 ? String.fromCodePoint(charCode) : glyph.isSpace ? ' ' : '';
 
       if (char) {
         entry.text += char;
@@ -8500,8 +8500,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       };
     };
 
-    const getLeft = (run: McidRunAccumulator) =>
-      run.pageLeft ?? (run.rect ? run.rect.origin.x : 0);
+    const getLeft = (run: McidRunAccumulator) => run.pageLeft ?? (run.rect ? run.rect.origin.x : 0);
     const getRight = (run: McidRunAccumulator) =>
       run.pageRight ?? (run.rect ? run.rect.origin.x + run.rect.size.width : getLeft(run));
     const getTop = (run: McidRunAccumulator) =>
@@ -8546,6 +8545,67 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const MERGE_GAP_THRESHOLD = 0.2;
     const MERGE_Y_THRESHOLD = 0.2;
     const MERGE_BACKTRACK = 0.05;
+
+    const TRACKING_SPACE_FACTOR = 0.102;
+    const NOT_A_SPACE_FACTOR = 0.03;
+    const SPACE_IN_FLOW_MIN_FACTOR = 0.102;
+    const SPACE_IN_FLOW_MAX_FACTOR = 0.6;
+
+    const getFontSizeHint = (run: McidRunAccumulator) => {
+      const fontSize = run.font?.size;
+      if (fontSize !== undefined && Number.isFinite(fontSize) && fontSize > 0) {
+        return fontSize;
+      }
+      const rectHeight = run.rect?.size.height;
+      if (rectHeight !== undefined && Number.isFinite(rectHeight) && rectHeight > 0) {
+        return rectHeight;
+      }
+      const avgWidth = getAverageWidth(run);
+      return avgWidth ?? undefined;
+    };
+
+    const evaluateSpacing = (
+      last: McidRunAccumulator,
+      current: McidRunAccumulator,
+      gap: number,
+    ): 'merge' | 'mergeWithSpace' | 'break' => {
+      if (!Number.isFinite(gap) || gap <= 0) {
+        return 'merge';
+      }
+
+      if (last.text.endsWith(' ') || current.text.startsWith(' ')) {
+        return 'merge';
+      }
+
+      const fontSize = Math.max(getFontSizeHint(last) ?? 0, getFontSizeHint(current) ?? 0);
+
+      if (!fontSize || !Number.isFinite(fontSize)) {
+        return gap > MERGE_GAP_THRESHOLD ? 'break' : 'merge';
+      }
+
+      const notASpace = fontSize * NOT_A_SPACE_FACTOR;
+      if (gap <= notASpace) {
+        return 'merge';
+      }
+
+      const trackingSpace = fontSize * TRACKING_SPACE_FACTOR;
+      if (gap <= trackingSpace) {
+        return 'merge';
+      }
+
+      const spaceMin = fontSize * SPACE_IN_FLOW_MIN_FACTOR;
+      const spaceMax = fontSize * SPACE_IN_FLOW_MAX_FACTOR;
+
+      if (gap >= spaceMin && gap <= spaceMax) {
+        return 'mergeWithSpace';
+      }
+
+      if (gap > spaceMax) {
+        return 'break';
+      }
+
+      return 'merge';
+    };
 
     const computeGapThreshold = (a: McidRunAccumulator, b: McidRunAccumulator) => {
       const base = MERGE_GAP_THRESHOLD;
@@ -8610,6 +8670,16 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
             const gapThreshold = computeGapThreshold(last, current);
             const backtrack = computeBacktrack(last, current);
             if (gap >= -backtrack && gap <= gapThreshold) {
+              const spacingDecision = evaluateSpacing(last, current, gap);
+              if (spacingDecision === 'break') {
+                merged.push(current);
+                continue;
+              }
+
+              if (spacingDecision === 'mergeWithSpace') {
+                last.text += ' ';
+              }
+
               last.text += current.text;
               if (last.rect && current.rect) {
                 last.rect = unionRect(last.rect, current.rect);
@@ -8632,11 +8702,11 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
               last.firstIndex =
                 last.firstIndex !== undefined && current.firstIndex !== undefined
                   ? Math.min(last.firstIndex, current.firstIndex)
-                  : last.firstIndex ?? current.firstIndex;
+                  : (last.firstIndex ?? current.firstIndex);
               last.lastIndex =
                 last.lastIndex !== undefined && current.lastIndex !== undefined
                   ? Math.max(last.lastIndex, current.lastIndex)
-                  : last.lastIndex ?? current.lastIndex;
+                  : (last.lastIndex ?? current.lastIndex);
               if (!last.font && current.font) {
                 last.font = { ...current.font };
               }
