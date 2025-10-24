@@ -8767,6 +8767,9 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const seen = new Set<number>();
       for (let i = 0; i < mcidCount; i++) {
         const mcid = this.pdfiumModule.FPDF_StructElement_GetMarkedContentIdAtIndex(elPtr, i);
+        if (mcid < 0) {
+          continue;
+        }
         if (seen.has(mcid)) {
           continue;
         }
