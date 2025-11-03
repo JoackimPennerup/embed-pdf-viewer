@@ -82,7 +82,7 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
     try {
       const fonts = await engine.getDocumentEmbeddedFonts(doc).toPromise();
       if (Array.isArray(fonts)) {
-        registerDocumentFonts(doc.id, fonts);
+        await registerDocumentFonts(doc.id, fonts);
       }
     } catch (error) {
       this.logger.warn('A11yPlugin', 'Fonts', 'Unable to register embedded fonts', error);

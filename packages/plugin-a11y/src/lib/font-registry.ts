@@ -1,9 +1,13 @@
 import { PdfDocumentEmbeddedFont } from '@embedpdf/models';
-
-import { a11yStyleSheet } from './stylesheet';
+import { blob } from 'stream/consumers';
 
 const pdfFontNameToCss = new Map<string, string | null>();
 let fontCounter = 0;
+const registeredFontFaces: FontFace[] = [];
+
+function warn(...args: unknown[]): void {
+  (globalThis as { console?: { warn?: (...args: unknown[]) => void } }).console?.warn?.(...args);
+}
 
 const SUPPORTED_FORMATS: Record<string, { mime: string; cssFormat: string }> = {
   woff2: { mime: 'font/woff2', cssFormat: 'woff2' },
@@ -79,6 +83,16 @@ function toBase64(data: Uint8Array): string {
   throw new Error('Base64 encoding is not supported in this environment.');
 }
 
+function sliceToArrayBuffer(data: Uint8Array): ArrayBuffer {
+  if (
+    data.byteOffset === 0 &&
+    data.byteLength === data.buffer.byteLength
+  ) {
+    return data.buffer;
+  }
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+}
+
 function normaliseName(name: string): string {
   return name.trim();
 }
@@ -92,7 +106,7 @@ function setNameMapping(name: string, cssFamily: string | null) {
   pdfFontNameToCss.set(trimmed.toLowerCase(), cssFamily);
 }
 
-function registerFontFace(font: PdfDocumentEmbeddedFont): string | undefined {
+async function registerFontFace(font: PdfDocumentEmbeddedFont): Promise<string | undefined> {
   if (!font.data || !font.data.length) {
     return undefined;
   }
@@ -105,32 +119,45 @@ function registerFontFace(font: PdfDocumentEmbeddedFont): string | undefined {
   fontCounter += 1;
   const cssFamily = `embedpdf-font-${fontCounter}`;
 
-  const base64 = toBase64(font.data);
-  const descriptors: string[] = [];
-  descriptors.push(`font-family: "${cssFamily}"`);
-  descriptors.push(
-    `src: url("data:${detected.mime};base64,${base64}") format('${detected.cssFormat}')`,
-  );
-  descriptors.push('font-display: swap');
-
-  if (typeof font.weight === 'number' && Number.isFinite(font.weight) && font.weight > 0) {
-    descriptors.push(`font-weight: ${Math.round(font.weight)}`);
-  }
-
+  const finiteWeight =
+    typeof font.weight === 'number' && Number.isFinite(font.weight) && font.weight > 0
+      ? Math.round(font.weight)
+      : undefined;
+  const weightDescriptor = finiteWeight !== undefined ? String(finiteWeight) : undefined;
   const isItalic =
     font.italic === true || (typeof font.italicAngle === 'number' && font.italicAngle !== 0);
-  if (isItalic) {
-    descriptors.push('font-style: italic');
+  const styleDescriptor = isItalic ? 'italic' : 'normal';
+
+  const FontFaceCtor = (globalThis as { FontFace?: typeof FontFace }).FontFace;
+  const doc = (globalThis as { document?: Document }).document;
+  const fontSet = doc?.fonts;
+
+  if (!FontFaceCtor || !fontSet) {
+    warn(
+      '[A11yPlugin] FontFace API unavailable; embedded font cannot be loaded',
+      font.baseName ?? font.id,
+    );
+    return undefined;
   }
 
-  const rule = `@font-face { ${descriptors.join('; ')}; }`;
-
   try {
-    a11yStyleSheet.insertRule(rule, a11yStyleSheet.cssRules.length);
+    const descriptors: FontFaceDescriptors = { style: styleDescriptor };
+    if (weightDescriptor) {
+      descriptors.weight = weightDescriptor;
+    }
+
+    const binary = sliceToArrayBuffer(font.data);
+    console.log("TTF stream: ", URL.createObjectURL(new Blob([binary])));
+    const fontFace = new FontFaceCtor(cssFamily, binary, descriptors);
+    if ('display' in fontFace) {
+      (fontFace as FontFace & { display?: string }).display = 'swap';
+    }
+    await fontFace.load();
+    fontSet.add(fontFace);
+    registeredFontFaces.push(fontFace);
     return cssFamily;
   } catch (error) {
-    const logger = (globalThis as { console?: { warn?: (...args: unknown[]) => void } }).console;
-    logger?.warn?.('[A11yPlugin] Failed to register font face', font.baseName ?? font.id, error);
+    warn('[A11yPlugin] Failed to load font via FontFace API', font.baseName ?? font.id, error);
     return undefined;
   }
 }
@@ -155,27 +182,58 @@ function collectFontNames(font: PdfDocumentEmbeddedFont): string[] {
 export function resetFontRegistry(): void {
   pdfFontNameToCss.clear();
   fontCounter = 0;
+
+  const doc = (globalThis as { document?: Document }).document;
+  const fontSet = doc?.fonts;
+  if (fontSet) {
+    for (const face of registeredFontFaces) {
+      try {
+        if (typeof fontSet.delete === 'function') {
+          fontSet.delete(face);
+        }
+      } catch (error) {
+        warn('[A11yPlugin] Failed to remove font face', face.family, error);
+      }
+    }
+  }
+  registeredFontFaces.length = 0;
 }
 
-export function registerDocumentFonts(_docId: string, fonts: PdfDocumentEmbeddedFont[]): void {
+export async function registerDocumentFonts(
+  _docId: string,
+  fonts: PdfDocumentEmbeddedFont[],
+): Promise<void> {
   const seen = new Set<string>();
+  const registrations: Array<Promise<void>> = [];
   for (const font of fonts) {
     if (seen.has(font.id)) {
       continue;
     }
     seen.add(font.id);
 
-    const cssFamily = registerFontFace(font);
-    const names = collectFontNames(font);
-    if (names.length === 0 && cssFamily) {
-      // Still allow lookup via generated family if no names available.
-      setNameMapping(font.id, cssFamily);
-    }
+    registrations.push(
+      (async () => {
+        let cssFamily: string | undefined;
+        try {
+          cssFamily = await registerFontFace(font);
+        } catch (error) {
+          warn('[A11yPlugin] Unexpected error while registering font', font.baseName ?? font.id, error);
+          cssFamily = undefined;
+        }
 
-    for (const name of names) {
-      setNameMapping(name, cssFamily ?? null);
-    }
+        const names = collectFontNames(font);
+        if (names.length === 0) {
+          setNameMapping(font.id, cssFamily ?? null);
+        }
+
+        for (const name of names) {
+          setNameMapping(name, cssFamily ?? null);
+        }
+      })(),
+    );
   }
+
+  await Promise.all(registrations);
 }
 
 export function resolveFontFamily(pdfFontName: string | undefined): string | undefined {
