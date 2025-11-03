@@ -30,21 +30,35 @@ export function mapPdfTagToHtml(tag: string): string {
 export const A11yLayerClassName = "embedpdf-a11y-layer";
 const styleSheet = new CSSStyleSheet();
 styleSheet.replaceSync(`
-  .${A11yLayerClassName}, .${A11yLayerClassName} * {
+  .${A11yLayerClassName} {
     pointer-events: none;
     position: absolute;
     top: 0;
     left: 0;
+    color: #0000;
     font-family: Sans-Serif;
-  }
-  .${A11yLayerClassName} * {
-    white-space: pre;
-    font-kerning: none;
-  }
-  .${A11yLayerClassName} .textrun {
-    overflow: visible;
-    display: inline-block;
-    overflow: hidden;
+    font-size: 0;
+
+    &.debug {
+      color: hotpink;
+      z-index: 1000;
+    }
+
+    * {
+      position: absolute;
+      white-space: pre;
+      font-kerning: none;
+      top: 0;
+      left: 0;
+      color: inherit;
+      font: inherit;
+    }
+
+    .textrun {
+      overflow: visible;
+      display: inline-block;
+      overflow: hidden;
+    }
   }
 `);
 

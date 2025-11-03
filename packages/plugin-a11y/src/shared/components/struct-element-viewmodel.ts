@@ -92,6 +92,7 @@ export function computeStructElementViewModel(
   element: StructElement,
   scale: number,
   parentLanguage?: string,
+  debug: boolean = false,
 ): StructElementViewModel {
   // All geometry in the struct tree is in page-user units (points) where the
   // origin sits at the top/left of the page. Every time we project something
@@ -109,9 +110,15 @@ export function computeStructElementViewModel(
     height: toOptionalNumber(multiplySafe(element.rect.size.height, scale)),
   };
 
+  const attrs: Record<string, string> = { ...(element.attributes ?? {}) };
+
+  // If we're in debug mode, add a attrbiute to see original struct type
+  if (debug) {
+    attrs['data-pdftag'] = element.tag;
+  }
+
   // Forward language/attributes down the tree; the viewer uses this for
   // screen readers and inspectors.
-  const attrs: Record<string, string> = { ...(element.attributes ?? {}) };
   const ownLanguage = element.language;
   if (ownLanguage && ownLanguage !== parentLanguage) {
     attrs.lang = ownLanguage;

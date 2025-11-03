@@ -9,6 +9,7 @@ const props = defineProps<{ pageIndex: number; scale: number }>();
 const { pageIndex, scale } = toRefs(props);
 
 const { provides } = useA11yCapability();
+const debug = ref<boolean>(false);
 const elements = ref<StructElement[]>([]);
 const layerRef = useTemplateRef('layer');
 
@@ -21,6 +22,7 @@ watchEffect(() => {
     .getStructElements(pageIndex.value)
     .then((els) => (elements.value = els))
     .catch(() => (elements.value = []));
+  debug.value = provides.value.getDebugState();
 
   if (layerRef.value != null) {
     const rootNode = layerRef.value.getRootNode();
@@ -43,6 +45,7 @@ watchEffect(() => {
       :key="i"
       :element="el"
       :scale="scale"
+      :debug="debug"
     />
   </div>
 </template>

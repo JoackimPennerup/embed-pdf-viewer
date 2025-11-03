@@ -7,12 +7,13 @@ interface Props {
   element: StructElementModel;
   scale: number;
   parentLanguage?: string;
+  debug: boolean;
 }
 
-export function StructElementComponent({ element, scale, parentLanguage }: Props) {
+export function StructElementComponent({ element, scale, parentLanguage, debug }: Props) {
   const elementRef = useRef<HTMLElement>(null);
 
-  const viewModel = computeStructElementViewModel(element, scale, parentLanguage);
+  const viewModel = computeStructElementViewModel(element, scale, parentLanguage, debug);
   const Tag = viewModel.tagName as any;
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export function StructElementComponent({ element, scale, parentLanguage }: Props
           element={child}
           scale={scale}
           parentLanguage={viewModel.nextParentLanguage}
+          debug={debug}
         />
       ))}
     </Tag>
