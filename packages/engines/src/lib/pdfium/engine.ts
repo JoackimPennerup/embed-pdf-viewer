@@ -71,6 +71,7 @@ import {
   PdfGlyphObject,
   PdfPageGeometry,
   PdfStructElement,
+  PdfDocumentEmbeddedFont,
   PdfStructElementFont,
   PdfStructElementTextRun,
   PdfTextMatrix,
@@ -8191,6 +8192,171 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
   }
 
   /**
+   * Extract all embedded fonts from the document for accessibility layer usage.
+   */
+  getDocumentEmbeddedFonts(doc: PdfDocumentObject): PdfTask<PdfDocumentEmbeddedFont[]> {
+    this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getDocumentEmbeddedFonts', doc);
+
+    const ctx = this.cache.getContext(doc.id);
+    if (!ctx) {
+      return PdfTaskHelper.resolve<PdfDocumentEmbeddedFont[]>([]);
+    }
+
+    const pdf = this.pdfiumModule.pdfium;
+    const fonts = new Map<number, PdfDocumentEmbeddedFont>();
+
+    const registerFont = (fontPtr: number): void => {
+      if (!fontPtr || fonts.has(fontPtr)) {
+        return;
+      }
+
+      const isEmbedded = !!this.pdfiumModule.FPDFFont_GetIsEmbedded(fontPtr);
+      if (!isEmbedded) {
+        return;
+      }
+
+      const baseNameRaw = readString(
+        pdf,
+        (buffer, bufferLength) =>
+          this.pdfiumModule.FPDFFont_GetBaseFontName(fontPtr, buffer, bufferLength),
+        pdf.UTF8ToString,
+      ).trim();
+      const baseName = baseNameRaw.length ? baseNameRaw : undefined;
+
+      let subsetTag: string | undefined;
+      let postScriptName: string | undefined = baseName;
+      if (baseName && baseName.includes('+')) {
+        const [tag, rest] = baseName.split('+', 2);
+        if (tag && /^[A-Z]{6}$/.test(tag)) {
+          subsetTag = tag;
+        }
+        postScriptName = rest && rest.length ? rest : baseName;
+      }
+
+      const familyRaw = readString(
+        pdf,
+        (buffer, bufferLength) =>
+          this.pdfiumModule.FPDFFont_GetFamilyName(fontPtr, buffer, bufferLength),
+        pdf.UTF8ToString,
+      ).trim();
+      const family = familyRaw.length ? familyRaw : undefined;
+
+      const flagsValue = this.pdfiumModule.FPDFFont_GetFlags(fontPtr);
+      const flags = Number.isFinite(flagsValue) ? flagsValue : undefined;
+
+      const weightValue = this.pdfiumModule.FPDFFont_GetWeight(fontPtr);
+      const weight = Number.isFinite(weightValue) && weightValue > 0 ? weightValue : undefined;
+
+      let italicAngle: number | undefined;
+      const italicAnglePtr = this.memoryManager.malloc(4);
+      if (this.pdfiumModule.FPDFFont_GetItalicAngle(fontPtr, italicAnglePtr)) {
+        italicAngle = pdf.getValue(italicAnglePtr, 'i32');
+      }
+      this.memoryManager.free(italicAnglePtr);
+
+      let ascent: number | undefined;
+      let descent: number | undefined;
+      const ascentPtr = this.memoryManager.malloc(4);
+      const descentPtr = this.memoryManager.malloc(4);
+      if (this.pdfiumModule.FPDFFont_GetAscent(fontPtr, 1, ascentPtr)) {
+        ascent = pdf.getValue(ascentPtr, 'float');
+      }
+      if (this.pdfiumModule.FPDFFont_GetDescent(fontPtr, 1, descentPtr)) {
+        descent = pdf.getValue(descentPtr, 'float');
+      }
+      this.memoryManager.free(ascentPtr);
+      this.memoryManager.free(descentPtr);
+
+      const lengthPtr = this.memoryManager.malloc(4);
+      let data: Uint8Array | undefined;
+      let dataLength: number | undefined;
+      try {
+        this.pdfiumModule.FPDFFont_GetFontData(fontPtr, 0, 0, lengthPtr);
+        const requestedLength = pdf.getValue(lengthPtr, 'i32');
+        if (requestedLength > 0) {
+          dataLength = requestedLength;
+          const MAX_FONT_BYTES = 32 * 1024 * 1024;
+          if (requestedLength <= MAX_FONT_BYTES) {
+            const bufferPtr = this.memoryManager.malloc(requestedLength);
+            try {
+              const ok = this.pdfiumModule.FPDFFont_GetFontData(
+                fontPtr,
+                bufferPtr,
+                requestedLength,
+                lengthPtr,
+              );
+              const actualLength = pdf.getValue(lengthPtr, 'i32');
+              if (ok && actualLength > 0 && actualLength <= MAX_FONT_BYTES) {
+                dataLength = actualLength;
+                const heap = pdf.HEAPU8;
+                data = new Uint8Array(actualLength);
+                data.set(heap.subarray(bufferPtr, bufferPtr + actualLength));
+              }
+            } finally {
+              this.memoryManager.free(bufferPtr);
+            }
+          }
+        }
+      } finally {
+        this.memoryManager.free(lengthPtr);
+      }
+
+      const ITALIC_FLAGS = 0x20 | 0x40;
+      const italicFlag = typeof flags === 'number' && (flags & ITALIC_FLAGS) !== 0;
+      const italic = italicFlag || (typeof italicAngle === 'number' && italicAngle !== 0);
+
+      fonts.set(fontPtr, {
+        id: `font-${fontPtr.toString(16)}`,
+        baseName,
+        postScriptName,
+        subsetTag,
+        family,
+        flags,
+        weight,
+        italic,
+        italicAngle,
+        ascent,
+        descent,
+        data,
+        dataLength,
+        isEmbedded,
+      });
+    };
+
+    const visitObject = (objectPtr: number): void => {
+      if (!objectPtr) return;
+      const type = this.pdfiumModule.FPDFPageObj_GetType(objectPtr);
+      if (type === PdfPageObjectType.FORM) {
+        const childCount = this.pdfiumModule.FPDFFormObj_CountObjects(objectPtr);
+        for (let i = 0; i < childCount; i++) {
+          const childPtr = this.pdfiumModule.FPDFFormObj_GetObject(objectPtr, i);
+          visitObject(childPtr);
+        }
+        return;
+      }
+
+      if (type === PdfPageObjectType.TEXT) {
+        const fontPtr = this.pdfiumModule.FPDFTextObj_GetFont(objectPtr) as number;
+        if (fontPtr) {
+          registerFont(fontPtr);
+        }
+      }
+    };
+
+    for (let pageIndex = 0; pageIndex < doc.pageCount; pageIndex++) {
+      ctx.borrowPage(pageIndex, (pageCtx) => {
+        const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
+        for (let objectIndex = 0; objectIndex < objectCount; objectIndex++) {
+          const objPtr = this.pdfiumModule.FPDFPage_GetObject(pageCtx.pagePtr, objectIndex);
+          visitObject(objPtr);
+        }
+      });
+    }
+
+    return PdfTaskHelper.resolve(Array.from(fonts.values()));
+  }
+
+  /**
    * Walk the tagged structure tree of a page and return a hierarchy of elements
    * including tag name, text content, bounding rectangle and MCID references.
    */
@@ -8341,7 +8507,6 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       };
 
       entry.rect = entry.rect ? unionRect(entry.rect, rect) : rect;
-
     };
 
     const objectCount = this.pdfiumModule.FPDFPage_CountObjects(pageCtx.pagePtr);
@@ -8353,7 +8518,13 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const readFontInfo = (charIndex: number): PdfStructElementFont | undefined => {
       let family: string | undefined;
       let flags: number | undefined;
-      const fontNameLength = this.pdfiumModule.FPDFText_GetFontInfo(textPagePtr, charIndex, 0, 0, 0);
+      const fontNameLength = this.pdfiumModule.FPDFText_GetFontInfo(
+        textPagePtr,
+        charIndex,
+        0,
+        0,
+        0,
+      );
       if (fontNameLength > 0) {
         const bytes = fontNameLength + 1; // include NIL
         const textBufferPtr = this.memoryManager.malloc(bytes);
@@ -8378,7 +8549,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
       const ITALIC_FLAGS = 0x20 | 0x40;
       const FORCE_BOLD_FLAG = 0x100;
-      const italic = !!(flags && (flags & ITALIC_FLAGS));
+      const italic = !!(flags && flags & ITALIC_FLAGS);
       if (flags && flags & FORCE_BOLD_FLAG) {
         fontWeight = Math.max(fontWeight ?? 600, 600);
       }
@@ -8454,11 +8625,11 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         run.pageLeft = run.pageLeft === undefined ? left : Math.min(run.pageLeft, left);
         run.pageRight = run.pageRight === undefined ? right : Math.max(run.pageRight, right);
         run.pageTop = run.pageTop === undefined ? top : Math.max(run.pageTop, top);
-        run.pageBottom =
-          run.pageBottom === undefined ? bottom : Math.min(run.pageBottom, bottom);
+        run.pageBottom = run.pageBottom === undefined ? bottom : Math.min(run.pageBottom, bottom);
       }
 
-      run.firstIndex = run.firstIndex === undefined ? charIndex : Math.min(run.firstIndex, charIndex);
+      run.firstIndex =
+        run.firstIndex === undefined ? charIndex : Math.min(run.firstIndex, charIndex);
       run.lastIndex = run.lastIndex === undefined ? charIndex : Math.max(run.lastIndex, charIndex);
 
       if (!entry.font && fontInfo) {
@@ -8473,11 +8644,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
           ? glyph.charCode
           : this.pdfiumModule.FPDFText_GetUnicode(textPagePtr, charIndex);
       const char =
-        charCode && charCode > 0
-          ? String.fromCodePoint(charCode)
-          : glyph.isSpace
-          ? ' '
-          : '';
+        charCode && charCode > 0 ? String.fromCodePoint(charCode) : glyph.isSpace ? ' ' : '';
 
       if (char) {
         entry.text += char;
@@ -8498,8 +8665,7 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       };
     };
 
-    const getLeft = (run: McidRunAccumulator) =>
-      run.pageLeft ?? (run.rect ? run.rect.origin.x : 0);
+    const getLeft = (run: McidRunAccumulator) => run.pageLeft ?? (run.rect ? run.rect.origin.x : 0);
     const getRight = (run: McidRunAccumulator) =>
       run.pageRight ?? (run.rect ? run.rect.origin.x + run.rect.size.width : getLeft(run));
     const getTop = (run: McidRunAccumulator) =>
@@ -8597,22 +8763,22 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
             last.firstIndex =
               last.firstIndex !== undefined && current.firstIndex !== undefined
                 ? Math.min(last.firstIndex, current.firstIndex)
-                : last.firstIndex ?? current.firstIndex;
-              last.lastIndex =
-                last.lastIndex !== undefined && current.lastIndex !== undefined
-                  ? Math.max(last.lastIndex, current.lastIndex)
-                  : last.lastIndex ?? current.lastIndex;
-              if (!last.font && current.font) {
-                last.font = { ...current.font };
-              }
-              if (!last.matrix && current.matrix) {
-                last.matrix = { ...current.matrix };
-              }
-              continue;
+                : (last.firstIndex ?? current.firstIndex);
+            last.lastIndex =
+              last.lastIndex !== undefined && current.lastIndex !== undefined
+                ? Math.max(last.lastIndex, current.lastIndex)
+                : (last.lastIndex ?? current.lastIndex);
+            if (!last.font && current.font) {
+              last.font = { ...current.font };
             }
+            if (!last.matrix && current.matrix) {
+              last.matrix = { ...current.matrix };
+            }
+            continue;
           }
-          merged.push(current);
         }
+        merged.push(current);
+      }
       return merged;
     };
 

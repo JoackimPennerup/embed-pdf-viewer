@@ -39,6 +39,7 @@ import {
   PdfPrintOptions,
   PdfTrappedStatus,
   PdfAddAttachmentParams,
+  PdfDocumentEmbeddedFont,
 } from '@embedpdf/models';
 
 /**
@@ -79,6 +80,9 @@ export function createMockPdfEngine(partialEngine?: Partial<PdfEngine>): PdfEngi
     getDocUserPermissions: (doc: PdfDocumentObject) => {
       return PdfTaskHelper.resolve(0xffffffff);
     },
+    getDocumentEmbeddedFonts: jest.fn((doc: PdfDocumentObject) => {
+      return PdfTaskHelper.resolve([] as PdfDocumentEmbeddedFont[]);
+    }),
     getSignatures: (doc: PdfDocumentObject) => {
       const signatures: PdfSignatureObject[] = [];
       return PdfTaskHelper.resolve(signatures);
