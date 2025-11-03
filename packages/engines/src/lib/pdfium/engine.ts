@@ -3789,9 +3789,9 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
   /**
    * Extract glyph geometry + metadata for `charIndex`
    *
-   * Returns device–space coordinates:
-   *   x,y  → **top-left** corner (integer-pixels)
-   *   w,h  → width / height (integer-pixels, ≥ 1)
+   * Returns page-user-space coordinates (points) with an origin at the page's top-left:
+   *   x,y  → top-left corner
+   *   w,h  → width / height
    *
    * And two flags:
    *   isSpace → true if the glyph's Unicode code-point is U+0020
@@ -3802,11 +3802,6 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     textPagePtr: number,
     charIndex: number,
   ): PdfGlyphObject {
-    // ── native stack temp pointers ──────────────────────────────
-    const dx1Ptr = this.memoryManager.malloc(4);
-    const dy1Ptr = this.memoryManager.malloc(4);
-    const dx2Ptr = this.memoryManager.malloc(4);
-    const dy2Ptr = this.memoryManager.malloc(4);
     const rectPtr = this.memoryManager.malloc(16); // 4 floats = 16 bytes
 
     let x = 0,
@@ -3834,61 +3829,35 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
       const maxX = Math.max(left, right);
       const minY = Math.min(top, bottom);
       const maxY = Math.max(top, bottom);
-      pageBounds = { left: minX, right: maxX, top: maxY, bottom: minY };
+      const rawWidth = maxX - minX;
+      const rawHeight = maxY - minY;
 
-      if (left === right || top === bottom) {
-        [rectPtr, dx1Ptr, dy1Ptr, dx2Ptr, dy2Ptr].forEach((p) => this.memoryManager.free(p));
+      if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight) || rawWidth <= 0 || rawHeight <= 0) {
+        this.memoryManager.free(rectPtr);
 
         return {
           origin: { x: 0, y: 0 },
           size: { width: 0, height: 0 },
           isEmpty: true,
           ...(charCode !== undefined && { charCode }),
-          ...(pageBounds ? { pageBounds } : {}),
         };
       }
 
-      // ── 2) map 2 opposite corners to            device-space
-      this.pdfiumModule.FPDF_PageToDevice(
-        pagePtr,
-        0,
-        0,
-        page.size.width,
-        page.size.height,
-        /*rotate=*/ 0,
-        left,
-        top,
-        dx1Ptr,
-        dy1Ptr,
-      );
-      this.pdfiumModule.FPDF_PageToDevice(
-        pagePtr,
-        0,
-        0,
-        page.size.width,
-        page.size.height,
-        /*rotate=*/ 0,
-        right,
-        bottom,
-        dx2Ptr,
-        dy2Ptr,
-      );
+      const declaredPageHeight = Number.isFinite(page.size.height) ? page.size.height : 0;
+      const pageHeight = declaredPageHeight > 0 ? Math.max(declaredPageHeight, maxY) : maxY;
+      const topY = pageHeight - maxY;
+      const bottomY = topY + rawHeight;
 
-      const x1 = this.pdfiumModule.pdfium.getValue(dx1Ptr, 'i32');
-      const y1 = this.pdfiumModule.pdfium.getValue(dy1Ptr, 'i32');
-      const x2 = this.pdfiumModule.pdfium.getValue(dx2Ptr, 'i32');
-      const y2 = this.pdfiumModule.pdfium.getValue(dy2Ptr, 'i32');
+      pageBounds = { left: minX, right: maxX, top: topY, bottom: bottomY };
 
-      x = Math.min(x1, x2);
-      y = Math.min(y1, y2);
-      width = Math.max(1, Math.abs(x2 - x1));
-      height = Math.max(1, Math.abs(y2 - y1));
-
-      // ── 3) extra flags ───────────────────────────────────────
+      x = minX;
+      y = topY;
+      width = rawWidth;
+      height = rawHeight;
     }
 
     // ── free tmps ───────────────────────────────────────────────
-    [rectPtr, dx1Ptr, dy1Ptr, dx2Ptr, dy2Ptr].forEach((p) => this.memoryManager.free(p));
+    this.memoryManager.free(rectPtr);
 
     return {
       origin: { x, y },
@@ -8457,8 +8426,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
         const { left, right, top, bottom } = bounds;
         run.pageLeft = run.pageLeft === undefined ? left : Math.min(run.pageLeft, left);
         run.pageRight = run.pageRight === undefined ? right : Math.max(run.pageRight, right);
-        run.pageTop = run.pageTop === undefined ? top : Math.max(run.pageTop, top);
-        run.pageBottom = run.pageBottom === undefined ? bottom : Math.min(run.pageBottom, bottom);
+        run.pageTop = run.pageTop === undefined ? top : Math.min(run.pageTop, top);
+        run.pageBottom = run.pageBottom === undefined ? bottom : Math.max(run.pageBottom, bottom);
       }
 
       run.firstIndex =
@@ -8503,10 +8472,10 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
     const getLeft = (run: McidRunAccumulator) => run.pageLeft ?? (run.rect ? run.rect.origin.x : 0);
     const getRight = (run: McidRunAccumulator) =>
       run.pageRight ?? (run.rect ? run.rect.origin.x + run.rect.size.width : getLeft(run));
-    const getTop = (run: McidRunAccumulator) =>
-      run.pageTop ?? (run.rect ? run.rect.origin.y + run.rect.size.height : 0);
+    const getTop = (run: McidRunAccumulator) => run.pageTop ?? (run.rect ? run.rect.origin.y : 0);
     const getBottom = (run: McidRunAccumulator) =>
-      run.pageBottom ?? (run.rect ? run.rect.origin.y : 0);
+      run.pageBottom ??
+      (run.rect ? run.rect.origin.y + run.rect.size.height : getTop(run));
     const getBaseline = (run: McidRunAccumulator) => getBottom(run);
     const getAverageWidth = (run: McidRunAccumulator) => {
       const width = getRight(run) - getLeft(run);
@@ -8697,8 +8666,8 @@ export class PdfiumEngine<T = Blob> implements PdfEngine<T> {
 
               last.pageLeft = Math.min(lastLeft, currentLeft);
               last.pageRight = Math.max(lastRight, currentRight);
-              last.pageTop = Math.max(lastTop, currentTop);
-              last.pageBottom = Math.min(lastBottom, currentBottom);
+              last.pageTop = Math.min(lastTop, currentTop);
+              last.pageBottom = Math.max(lastBottom, currentBottom);
               last.firstIndex =
                 last.firstIndex !== undefined && current.firstIndex !== undefined
                   ? Math.min(last.firstIndex, current.firstIndex)
