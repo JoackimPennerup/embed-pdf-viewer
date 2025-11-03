@@ -35,7 +35,6 @@ onMounted(() => {
     :is="tagName"
     v-bind="viewModel.attrs"
     :style="viewModel.elementStyle"
-    :data-pdftag="element.tag"
     ref="rootEl"
   >
     <span

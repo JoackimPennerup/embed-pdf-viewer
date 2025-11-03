@@ -201,7 +201,7 @@ export function computeStructElementViewModel(
       style: {
         left: toOptionalNumber(relativeLeft),
         top: toOptionalNumber(relativeTop),
-        ...(transform ? { transform, transformOrigin: 'top left' } : {}),
+        ...(transform ? { transform } : {}),
       },
     };
   });

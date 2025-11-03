@@ -23,7 +23,7 @@ export function StructElementComponent({ element, scale, parentLanguage, debug }
   });
 
   return (
-    <Tag {...viewModel.attrs} style={viewModel.elementStyle} data-pdftag={element.tag} ref={elementRef}>
+    <Tag {...viewModel.attrs} style={viewModel.elementStyle} ref={elementRef}>
       {viewModel.textRuns.map((run, i) => (
         <span
           key={i}
@@ -32,6 +32,7 @@ export function StructElementComponent({ element, scale, parentLanguage, debug }
           role="presentation"
         >
           {run.text}
+          {run.text.match(/[\n\r]+/) ? <br role="presentation" /> : null}
         </span>
       ))}
       {element.children.map((child, i) => (

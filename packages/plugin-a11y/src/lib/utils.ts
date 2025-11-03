@@ -42,6 +42,17 @@ styleSheet.replaceSync(`
     &.debug {
       color: hotpink;
       z-index: 1000;
+
+      [data-pdftag]::before {
+        content: attr(data-pdftag, "");
+        position: absolute;
+        display: inline-block;
+        top: -.7rem;
+        font-size: .7rem;
+        left: 0;
+        background: #b6b6b675;
+        color: hotpink;
+      }
     }
 
     * {
@@ -58,6 +69,7 @@ styleSheet.replaceSync(`
       overflow: visible;
       display: inline-block;
       overflow: hidden;
+      transform-origin: 0% 0%;
     }
   }
 `);
