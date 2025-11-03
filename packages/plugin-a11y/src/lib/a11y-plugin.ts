@@ -1,4 +1,5 @@
-import { BasePlugin, PluginRegistry } from '@embedpdf/core';
+import { BasePlugin, CoreState, PluginRegistry, StoreState } from '@embedpdf/core';
+import { PdfDocumentObject } from '@embedpdf/models';
 
 import {
   A11yCapability,
@@ -7,12 +8,14 @@ import {
   StructElementFont,
   StructElementTextRun,
 } from './types';
-import { mapPdfTagToHtml } from './utils';
+import { mapPdfTagToHtml, resetA11yStyles } from './utils';
+import { registerDocumentFonts, resetFontRegistry } from './font-registry';
 
 export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
   static readonly id = 'a11y' as const;
 
   private config: A11yPluginConfig = { debug: false };
+  private fontsReady: Promise<void> = Promise.resolve();
 
   constructor(id: string, registry: PluginRegistry) {
     super(id, registry);
@@ -37,7 +40,58 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
     return classes.join(' ');
   }
 
+  protected override onCoreStoreUpdated(
+    oldState: StoreState<CoreState>,
+    newState: StoreState<CoreState>,
+  ): void {
+    const oldDocId = oldState.core.document?.id ?? null;
+    const newDoc = newState.core.document ?? null;
+    const newDocId = newDoc?.id ?? null;
+
+    if (oldDocId === newDocId) {
+      return;
+    }
+
+    this.fontsReady = this.loadFontsForDocument(newDoc);
+    this.fontsReady.catch((error) => {
+      this.logger.warn('A11yPlugin', 'Fonts', 'Failed to prepare embedded fonts', error);
+    });
+  }
+
+  private async waitForFontsReady(): Promise<void> {
+    try {
+      await this.fontsReady;
+    } catch (error) {
+      this.logger.debug('A11yPlugin', 'Fonts', 'Falling back to default fonts', error);
+    }
+  }
+
+  private async loadFontsForDocument(doc: PdfDocumentObject | null): Promise<void> {
+    resetFontRegistry();
+    resetA11yStyles();
+
+    if (!doc) {
+      return;
+    }
+
+    const engine: any = this.engine as any;
+    if (typeof engine.getDocumentEmbeddedFonts !== 'function') {
+      return;
+    }
+
+    try {
+      const fonts = await engine.getDocumentEmbeddedFonts(doc).toPromise();
+      if (Array.isArray(fonts)) {
+        await registerDocumentFonts(doc.id, fonts);
+      }
+    } catch (error) {
+      this.logger.warn('A11yPlugin', 'Fonts', 'Unable to register embedded fonts', error);
+    }
+  }
+
   private async getStructElements(pageIndex: number): Promise<StructElement[]> {
+    await this.waitForFontsReady();
+
     const coreState = this.coreState.core;
     if (!coreState.document) {
       throw new Error('document does not open');

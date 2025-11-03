@@ -23,6 +23,7 @@ import {
   PdfGlyphObject,
   PdfPageGeometry,
   PdfStructElement,
+  PdfDocumentEmbeddedFont,
   PageTextSlice,
   AnnotationCreateContext,
   PdfEngineMethodArgs,
@@ -592,6 +593,20 @@ export class WebWorkerEngine implements PdfEngine {
     const task = new WorkerTask<PdfTextRectObject[]>(this.worker, requestId);
 
     const request: ExecuteRequest = createRequest(requestId, 'getPageTextRects', [doc, page]);
+    this.proxy(task, request);
+
+    return task;
+  }
+
+  /**
+   * Fetch all embedded fonts for the specified document.
+   */
+  getDocumentEmbeddedFonts(doc: PdfDocumentObject) {
+    this.logger.debug(LOG_SOURCE, LOG_CATEGORY, 'getDocumentEmbeddedFonts', doc);
+    const requestId = this.generateRequestId(doc.id);
+    const task = new WorkerTask<PdfDocumentEmbeddedFont[]>(this.worker, requestId);
+
+    const request: ExecuteRequest = createRequest(requestId, 'getDocumentEmbeddedFonts', [doc]);
     this.proxy(task, request);
 
     return task;

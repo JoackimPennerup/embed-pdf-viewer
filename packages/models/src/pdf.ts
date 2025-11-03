@@ -2243,6 +2243,70 @@ export interface PdfStructElementFont {
 }
 
 /**
+ * Embedded font information extracted from a PDF document
+ *
+ * @public
+ */
+export interface PdfDocumentEmbeddedFont {
+  /**
+   * Stable identifier for the font within the document
+   */
+  id: string;
+  /**
+   * Base font name (may include subset prefix)
+   */
+  baseName?: string;
+  /**
+   * PostScript font name without subset prefix
+   */
+  postScriptName?: string;
+  /**
+   * Subset tag (characters before '+') if present
+   */
+  subsetTag?: string;
+  /**
+   * Reported family name
+   */
+  family?: string;
+  /**
+   * Raw font descriptor flags
+   */
+  flags?: number;
+  /**
+   * Nominal font weight
+   */
+  weight?: number;
+  /**
+   * Whether the font is marked as italic
+   */
+  italic?: boolean;
+  /**
+   * Italic angle reported by PDFium
+   */
+  italicAngle?: number;
+  /**
+   * Normalised ascent value (for size = 1)
+   */
+  ascent?: number;
+  /**
+   * Normalised descent value (for size = 1)
+   */
+  descent?: number;
+  /**
+   * Raw embedded font data (if available)
+   */
+  data?: Uint8Array;
+  /**
+   * Length of the embedded font data in bytes
+   */
+  dataLength?: number;
+  /**
+   * Whether PDFium reported the font as embedded
+   */
+  isEmbedded: boolean;
+}
+
+/**
  * Text matrix describing the transform from text space to user space.
  *
  * @public
@@ -2922,6 +2986,12 @@ export interface PdfEngine<T = Blob> {
    * @returns task that contains the structural elements
    */
   getStructTree?: (doc: PdfDocumentObject, page: PdfPageObject) => PdfTask<PdfStructElement[]>;
+  /**
+   * Extract embedded fonts from the document
+   * @param doc - pdf document
+   * @returns task containing embedded fonts metadata and binary data
+   */
+  getDocumentEmbeddedFonts?: (doc: PdfDocumentObject) => PdfTask<PdfDocumentEmbeddedFont[]>;
   /**
    * Search across all pages in the document
    * @param doc - pdf document

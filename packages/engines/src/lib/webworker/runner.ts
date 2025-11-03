@@ -381,6 +381,9 @@ export class EngineRunner {
       case 'getStructTree':
         task = this.engine[name]!(...args);
         break;
+      case 'getDocumentEmbeddedFonts':
+        task = this.engine[name]!(...args);
+        break;
       case 'searchAllPages':
         task = this.engine[name]!(...args);
         break;
