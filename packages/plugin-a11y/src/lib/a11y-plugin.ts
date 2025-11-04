@@ -117,13 +117,16 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
           })
         : [];
 
+      const [htmlTag, htmlRole] = mapPdfTagToHtml(el.tag);
+      const attributes = {... el.attributes, htmlRole };
+
       return {
         tag: el.tag,
-        htmlTag: mapPdfTagToHtml(el.tag),
+        htmlTag,
         text: typeof el.text === 'string' ? el.text : '',
         rect: cloneRect(el.rect),
         language: el.lang,
-        attributes: el.attributes || {},
+        attributes,
         font: mapFont(el.font),
         textRuns,
         mcids: Array.isArray(el.mcids) ? el.mcids : [],

@@ -2871,7 +2871,7 @@ export function PDFViewer({ config }: PDFViewerProps) {
           createPluginRegistration(RotatePluginPackage, pluginConfigs.rotate),
           createPluginRegistration(SearchPluginPackage),
           createPluginRegistration(SelectionPluginPackage),
-          createPluginRegistration(A11yPluginPackage),
+          createPluginRegistration(A11yPluginPackage, {debug: true}),
           createPluginRegistration(TilingPluginPackage, pluginConfigs.tiling),
           createPluginRegistration(ThumbnailPluginPackage, pluginConfigs.thumbnail),
           createPluginRegistration(AnnotationPluginPackage),

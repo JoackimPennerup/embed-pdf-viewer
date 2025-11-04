@@ -37,15 +37,16 @@ onMounted(() => {
     :style="viewModel.elementStyle"
     ref="rootEl"
   >
-    <span
-      v-for="(run, i) in runs"
-      :key="i"
-      :class="run.className"
-      :style="run.style"
-      role="presentation"
-    >
-      {{ run.text }}
-    </span>
+    <template v-for="(run, i) in runs" :key="i">
+      <br v-if="run.breakBefore" role="presentation" />
+      <span
+        :class="run.className"
+        :style="run.style"
+        role="presentation"
+      >
+        {{ run.text }}
+      </span>
+    </template>
     <StructElementComponent
       v-for="(child, index) in element.children"
       :key="index"

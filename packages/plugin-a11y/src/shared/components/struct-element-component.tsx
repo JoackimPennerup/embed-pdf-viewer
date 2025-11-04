@@ -1,5 +1,5 @@
 import type { StructElement as StructElementModel } from '@embedpdf/plugin-a11y';
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { computeStructElementViewModel } from './struct-element-viewmodel';
 import { A11yLayerClassName } from '../../lib/utils';
 
@@ -25,15 +25,12 @@ export function StructElementComponent({ element, scale, parentLanguage, debug }
   return (
     <Tag {...viewModel.attrs} style={viewModel.elementStyle} ref={elementRef}>
       {viewModel.textRuns.map((run, i) => (
-        <span
-          key={i}
-          className={run.className}
-          style={run.style}
-          role="presentation"
-        >
-          {run.text}
-          {run.text.match(/[\n\r]+/) ? <br role="presentation" /> : null}
-        </span>
+        <Fragment key={i}>
+          {run.breakBefore ? <br role="presentation" /> : null}
+          <span className={run.className} style={run.style} role="presentation">
+            {run.text}
+          </span>
+        </Fragment>
       ))}
       {element.children.map((child, i) => (
         <StructElementComponent
