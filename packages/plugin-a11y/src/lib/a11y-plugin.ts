@@ -7,7 +7,7 @@ import {
   StructElementFont,
   StructElementTextRun,
 } from './types';
-import { mapPdfTagToHtml } from './utils';
+import { mapPdfTagToHtml, A11yLayerClassName } from './utils';
 
 export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
   static readonly id = 'a11y' as const;
@@ -26,13 +26,18 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
     return {
       getStructElements: this.getStructElements.bind(this),
       getClassNames: this.getClassNames.bind(this),
+      getDebugState: this.getDebugState.bind(this),
     };
   }
 
+  private getDebugState(): boolean{
+    return this.config.debug || false;
+  };
+
   private getClassNames(): string {
-    const classes = ['embedpdf-a11y-layer'];
+    const classes = [A11yLayerClassName];
     if (this.config.debug) {
-      classes.push('embedpdf-a11y-debug');
+      classes.push('debug');
     }
     return classes.join(' ');
   }
@@ -112,13 +117,16 @@ export class A11yPlugin extends BasePlugin<A11yPluginConfig, A11yCapability> {
           })
         : [];
 
+      const [htmlTag, htmlRole] = mapPdfTagToHtml(el.tag);
+      const attributes = {... el.attributes, htmlRole };
+
       return {
         tag: el.tag,
-        htmlTag: mapPdfTagToHtml(el.tag),
+        htmlTag,
         text: typeof el.text === 'string' ? el.text : '',
         rect: cloneRect(el.rect),
         language: el.lang,
-        attributes: el.attributes || {},
+        attributes,
         font: mapFont(el.font),
         textRuns,
         mcids: Array.isArray(el.mcids) ? el.mcids : [],

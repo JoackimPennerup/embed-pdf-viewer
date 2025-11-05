@@ -13,6 +13,7 @@ type Props = {
 export function A11yLayer({ pageIndex, scale }: Props) {
   const { provides } = useA11yCapability();
   const [className, setClassName] = useState<string>(A11yLayerClassName); 
+  const [debug, setDebug] = useState<boolean>(false); 
   const [elements, setElements] = useState<StructElementModel[]>([]);
   const layerRef = useRef<HTMLDivElement>(null);
 
@@ -23,6 +24,7 @@ export function A11yLayer({ pageIndex, scale }: Props) {
       .then(setElements)
       .catch(() => setElements([]));
     setClassName(provides.getClassNames());
+    setDebug(provides.getDebugState());
   }, [provides, pageIndex]);
 
   useEffect(() => {
@@ -40,9 +42,9 @@ export function A11yLayer({ pageIndex, scale }: Props) {
   };
 
   return (
-    <div className={className} ref={layerRef} style={style}>
+    <div className={className} ref={layerRef} style={style as any}>
       {elements.map((el, i) => (
-        <StructElementComponent key={i} element={el} scale={scale} />
+        <StructElementComponent key={i} element={el} scale={scale} debug={debug}/>
       ))}
     </div>
   );

@@ -2307,7 +2307,7 @@ export interface PdfGlyphObject {
    */
   charCode?: number;
   /**
-   * Bounding box of the glyph in page-user-space coordinates
+   * Bounding box of the glyph in page-user-space coordinates (origin at top/left)
    */
   pageBounds?: { left: number; right: number; top: number; bottom: number };
 }

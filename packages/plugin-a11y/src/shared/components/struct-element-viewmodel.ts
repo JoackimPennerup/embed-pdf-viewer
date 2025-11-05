@@ -11,6 +11,7 @@ export interface StructElementRunViewModel {
     transform?: string;
     transformOrigin?: string;
   };
+  breakBefore?: boolean;
 }
 
 export interface StructElementViewModel {
@@ -29,7 +30,8 @@ export interface StructElementViewModel {
 
 const PRECISION = 0.01;
 const MAX_REASONABLE_FONT = 1e4;
-const SPACE_GAP_THRESHOLD = 0.5;
+const SPACE_GAP_THRESHOLD = 0.8;
+const LINE_BREAK_THRESHOLD = 1.5;
 
 const roundTo = (value: number, step: number = PRECISION) =>
   Math.round(value / step) * step;
@@ -92,6 +94,7 @@ export function computeStructElementViewModel(
   element: StructElement,
   scale: number,
   parentLanguage?: string,
+  debug: boolean = false,
 ): StructElementViewModel {
   // All geometry in the struct tree is in page-user units (points) where the
   // origin sits at the top/left of the page. Every time we project something
@@ -109,9 +112,15 @@ export function computeStructElementViewModel(
     height: toOptionalNumber(multiplySafe(element.rect.size.height, scale)),
   };
 
+  const attrs: Record<string, string> = { ...(element.attributes ?? {}) };
+
+  // If we're in debug mode, add a attrbiute to see original struct type
+  if (debug) {
+    attrs['data-pdftag'] = element.tag;
+  }
+
   // Forward language/attributes down the tree; the viewer uses this for
   // screen readers and inspectors.
-  const attrs: Record<string, string> = { ...(element.attributes ?? {}) };
   const ownLanguage = element.language;
   if (ownLanguage && ownLanguage !== parentLanguage) {
     attrs.lang = ownLanguage;
@@ -133,7 +142,18 @@ export function computeStructElementViewModel(
       : 0;
   const avgTextHeight = avgTextHeightRaw > 0 ? roundTo(avgTextHeightRaw) : 0;
 
-  const textRuns = element.textRuns.map((run, index, runs): StructElementRunViewModel => {
+  const textRuns: StructElementRunViewModel[] = [];
+  let previousRun: StructElementTextRun | undefined;
+
+  for (let index = 0; index < element.textRuns.length; index++) {
+    const run = element.textRuns[index];
+    const baselineDelta =
+      previousRun !== undefined
+        ? Math.abs(run.rect.origin.y - previousRun.rect.origin.y)
+        : 0;
+    const sameLine = previousRun === undefined || baselineDelta <= LINE_BREAK_THRESHOLD;
+    const breakBefore = previousRun !== undefined && !sameLine;
+
     // `fontHeight` is always the rendered height in page-user units. It
     // prefers the text matrix (if available), multiplied by the declared
     // font size (`Tf`), so it stays in sync with the canvas output.
@@ -175,29 +195,37 @@ export function computeStructElementViewModel(
       run.font?.weight ?? element.font?.weight,
       run.font?.italic ?? element.font?.italic,
     );
+
     let displayText = rawText;
     if (displayText) {
-      const prev = index > 0 ? runs[index - 1] : undefined;
-      if (prev && !(prev.text ?? '').endsWith(' ') && !displayText.startsWith(' ')) {
+      const prev = previousRun;
+      if (
+        prev &&
+        sameLine &&
+        !(prev.text ?? '').endsWith(' ') &&
+        !displayText.startsWith(' ')
+      ) {
         const prevRight = prev.rect.origin.x + prev.rect.size.width;
         const gap = run.rect.origin.x - prevRight;
-        const sameLine = Math.abs(run.rect.origin.y - prev.rect.origin.y) <= 0.5;
-        if (sameLine && gap > SPACE_GAP_THRESHOLD) {
+        if (gap > SPACE_GAP_THRESHOLD) {
           displayText = ` ${displayText}`;
         }
       }
     }
 
-    return {
+    textRuns.push({
       text: displayText,
       className: [fontClass, lineHeightClass, 'textrun'].filter(Boolean).join(' '),
       style: {
         left: toOptionalNumber(relativeLeft),
         top: toOptionalNumber(relativeTop),
-        ...(transform ? { transform, transformOrigin: 'top left' } : {}),
+        ...(transform ? { transform } : {}),
       },
-    };
-  });
+      ...(breakBefore ? { breakBefore: true } : {}),
+    });
+
+    previousRun = run;
+  }
 
   return {
     tagName,

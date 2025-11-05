@@ -10,11 +10,12 @@ const props = defineProps<{
   element: StructElement;
   scale: number;
   parentLang?: string;
+  debug?: boolean;
 }>();
-const { element, scale, parentLang } = toRefs(props);
+const { element, scale, parentLang, debug } = toRefs(props);
 
 const viewModel = computed(() =>
-  computeStructElementViewModel(element.value, scale.value, parentLang.value),
+  computeStructElementViewModel(element.value, scale.value, parentLang.value, debug.value ?? false),
 );
 
 const tagName = computed(() => viewModel.value.tagName as any);const runs = computed(() => viewModel.value.textRuns);
@@ -34,24 +35,25 @@ onMounted(() => {
     :is="tagName"
     v-bind="viewModel.attrs"
     :style="viewModel.elementStyle"
-    :data-pdftag="element.tag"
     ref="rootEl"
   >
-    <span
-      v-for="(run, i) in runs"
-      :key="i"
-      :class="run.className"
-      :style="run.style"
-      role="presentation"
-    >
-      {{ run.text }}
-    </span>
+    <template v-for="(run, i) in runs" :key="i">
+      <br v-if="run.breakBefore" role="presentation" />
+      <span
+        :class="run.className"
+        :style="run.style"
+        role="presentation"
+      >
+        {{ run.text }}
+      </span>
+    </template>
     <StructElementComponent
       v-for="(child, index) in element.children"
       :key="index"
       :element="child"
       :scale="scale"
       :parent-lang="nextParentLang"
+      :debug="debug"
     />
   </component>
 </template>
