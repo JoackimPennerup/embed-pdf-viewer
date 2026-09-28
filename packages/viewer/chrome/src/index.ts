@@ -36,6 +36,8 @@ export type { ResolvedCommand } from '@embedpdf/react/commands';
 export { DocumentsToken } from '@embedpdf/react/runtime';
 export { CommandsToken } from '@embedpdf/react/commands';
 export { AnnotationToken } from '@embedpdf/react/annotation';
+export { A11yToken } from '@embedpdf/react/a11y';
+export type { A11yCapability, A11yPageData } from '@embedpdf/react/a11y';
 export { StageToken } from '@embedpdf/react/stage';
 export { SearchToken } from '@embedpdf/react/search';
 export { SelectionToken } from '@embedpdf/react/selection';

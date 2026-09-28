@@ -91,6 +91,7 @@ import {
   type EncodedImageWire,
   type RenderEncode,
   type PagesTextWorkerRequest,
+  type PagesAccessibilityWorkerRequest,
   type SearchQueryWorkerRequest,
   type FormsApplyEffectsWorkerRequest,
   type SerializedEngineError,
@@ -145,6 +146,7 @@ import {
   hasSignedSignature,
 } from '../features/signature';
 import { PageTextReader } from '../features/text';
+import { PageAccessibilityReader } from '../features/accessibility/PageAccessibilityReader';
 import { ensureInitialized, destroyLibrary } from '../runtime/lifecycle/bootstrap';
 import { generateUuid } from '../shared/uuid';
 
@@ -453,6 +455,9 @@ export class WorkerHost {
           break;
         case 'pages.text':
           resultPack = this.handlePagesText(msg, ctrl.signal);
+          break;
+        case 'pages.accessibility':
+          resultPack = this.handlePagesAccessibility(msg, ctrl.signal);
           break;
         case 'pages.geometry':
           resultPack = this.handlePagesGeometry(msg, ctrl.signal);
@@ -1214,6 +1219,16 @@ export class WorkerHost {
     const reader = new PageTextReader(this.runtime, session);
     const snapshot = reader.read(session.resolvePageRef(req.page).pageObjectNumber, signal);
     return wirePack({ tag: 'pages.text', snapshot });
+  }
+
+  private handlePagesAccessibility(
+    req: PagesAccessibilityWorkerRequest,
+    signal: AbortSignal,
+  ): WirePack<WorkerResultPayload> {
+    const session = this.requireSession(req);
+    const reader = new PageAccessibilityReader(this.runtime, session);
+    const snapshot = reader.read(session.resolvePageRef(req.page).pageObjectNumber, signal);
+    return wirePack({ tag: 'pages.accessibility', snapshot });
   }
 
   private handlePagesGeometry(

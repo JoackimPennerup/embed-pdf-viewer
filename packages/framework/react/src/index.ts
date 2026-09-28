@@ -1,4 +1,5 @@
 export * from './runtime';
+export * from './a11y';
 export * from './anchored';
 export * from './stage';
 export * from './scrollbar';

@@ -24,6 +24,7 @@ import type { PageRotation } from '../dto/PageLayout';
 import type { PageListSnapshot } from '../dto/PageListSnapshot';
 import type { PageNetworkRenderFormat, PageRaster, PageRenderOptions } from '../dto/PageRender';
 import type { PageTextSnapshot } from '../dto/PageTextSnapshot';
+import type { PageAccessibilitySnapshot } from '../dto/PageAccessibilitySnapshot';
 import type { DocumentActionsSnapshot } from '../dto/PdfAction';
 import type { PdfSaveMode } from '../dto/PdfSaveMode';
 import type { PieceInfoPatch, PieceInfoSnapshot } from '../dto/PieceInfo';
@@ -156,9 +157,7 @@ export interface OpenLayerFileBaseWorkerRequest {
 }
 
 export type OpenWorkerRequest =
-  | OpenFatMemoryWorkerRequest
-  | OpenLayerMemoryBaseWorkerRequest
-  | OpenLayerFileBaseWorkerRequest;
+  OpenFatMemoryWorkerRequest | OpenLayerMemoryBaseWorkerRequest | OpenLayerFileBaseWorkerRequest;
 
 // ---------------------------------------------------------------------------
 // Digital signatures (read side) and the saved version.
@@ -565,6 +564,14 @@ export interface PagesListWorkerRequest {
  */
 export interface PagesTextWorkerRequest {
   kind: 'pages.text';
+  jobId: WorkerJobId;
+  docId: string;
+  layerName?: string;
+  page: PageRef;
+}
+
+export interface PagesAccessibilityWorkerRequest {
+  kind: 'pages.accessibility';
   jobId: WorkerJobId;
   docId: string;
   layerName?: string;
@@ -1151,6 +1158,7 @@ export type WorkerRequest =
   | PieceInfoApplicationsWorkerRequest
   | PieceInfoClearWorkerRequest
   | PagesTextWorkerRequest
+  | PagesAccessibilityWorkerRequest
   | PagesGeometryWorkerRequest
   | PagesRenderWorkerRequest
   | PagesRenderEncodedWorkerRequest
@@ -1417,6 +1425,7 @@ export type WorkerResultPayload =
       artifactFile?: LayerArtifactFileWorkerPayload;
     }
   | { tag: 'pages.text'; snapshot: PageTextSnapshot }
+  | { tag: 'pages.accessibility'; snapshot: PageAccessibilitySnapshot }
   | { tag: 'pages.geometry'; snapshot: PageGeometrySnapshot }
   | { tag: 'pages.render'; raster: PageRaster }
   | { tag: 'pages.renderEncoded'; image: EncodedImageWire }

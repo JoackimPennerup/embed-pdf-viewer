@@ -67,6 +67,13 @@ export {
 } from './geometry';
 export type { PageTextSnapshot } from './dto/PageTextSnapshot';
 export type {
+  PageAccessibilitySnapshot,
+  PageStructureContent,
+  PageStructureElement,
+  PageStructureFont,
+  PageStructureTextRun,
+} from './dto/PageAccessibilitySnapshot';
+export type {
   PageGeometryGlyph,
   PageGeometryRun,
   PageGeometrySnapshot,

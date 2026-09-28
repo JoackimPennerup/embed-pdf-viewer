@@ -40,6 +40,7 @@ export {
 // lenses). This re-export list is the CDN's public-API act — see the chrome's
 // index for the curation rule.
 export {
+  A11yToken,
   AnnotationToken,
   CommandsToken,
   DocumentsToken,
@@ -79,6 +80,8 @@ export type {
   TrustPort,
 } from '@embedpdf/viewer-chrome';
 export type {
+  A11yCapability,
+  A11yPageData,
   CapabilityToken,
   DocInfo,
   DocumentsCapability,

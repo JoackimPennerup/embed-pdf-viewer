@@ -2,6 +2,7 @@ import type { PageAnnotationsService } from './PageAnnotationsService';
 import type { PageGeometryService } from './PageGeometryService';
 import type { PageRenderService } from './PageRenderService';
 import type { PageTextService } from './PageTextService';
+import type { PageAccessibilityService } from './PageAccessibilityService';
 import type { PieceInfoService } from './PieceInfoService';
 import type { PageMeasureService } from './PageMeasureService';
 import type { PageRef } from '../identity/PageRef';
@@ -21,6 +22,7 @@ export interface PageHandle {
   readonly pageIndex: number;
   readonly annotations: PageAnnotationsService;
   readonly text: PageTextService;
+  readonly accessibility?: PageAccessibilityService;
   readonly geometry: PageGeometryService;
   readonly render: PageRenderService;
   /**

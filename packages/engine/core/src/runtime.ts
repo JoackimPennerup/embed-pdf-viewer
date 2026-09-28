@@ -80,6 +80,7 @@ export type {
   PieceInfoSnapshot,
 } from './dto/PieceInfo';
 export type { PageTextService } from './engine/PageTextService';
+export type { PageAccessibilityService } from './engine/PageAccessibilityService';
 export type { PageGeometryService } from './engine/PageGeometryService';
 export type { PageRenderService } from './engine/PageRenderService';
 
@@ -149,6 +150,7 @@ export type {
   PieceInfoApplicationsWorkerRequest,
   PieceInfoClearWorkerRequest,
   PagesTextWorkerRequest,
+  PagesAccessibilityWorkerRequest,
   PagesGeometryWorkerRequest,
   PagesRenderWorkerRequest,
   PagesRenderEncodedWorkerRequest,

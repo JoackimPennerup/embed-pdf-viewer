@@ -11,6 +11,7 @@ import { LocalPageAnnotationsService } from './LocalPageAnnotationsService';
 import { LocalPageGeometryService } from './LocalPageGeometryService';
 import { LocalPageRenderService } from './LocalPageRenderService';
 import { LocalPageTextService } from './LocalPageTextService';
+import { LocalPageAccessibilityService } from './LocalPageAccessibilityService';
 import { LocalPieceInfoService } from './LocalPieceInfoService';
 import { LocalPageMeasureService } from './LocalPageMeasureService';
 import type { LocalImageEncoder } from '../render/BrowserImageEncoder';
@@ -29,6 +30,7 @@ interface DocClosedView {
 export class LocalPageHandle implements PageHandle {
   readonly annotations: LocalPageAnnotationsService;
   readonly text: LocalPageTextService;
+  readonly accessibility: LocalPageAccessibilityService;
   readonly geometry: LocalPageGeometryService;
   readonly render: LocalPageRenderService;
   readonly pieceInfo: LocalPieceInfoService;
@@ -56,6 +58,7 @@ export class LocalPageHandle implements PageHandle {
       renderPolicy,
     );
     this.text = new LocalPageTextService(docId, ref, queue, view, guard);
+    this.accessibility = new LocalPageAccessibilityService(docId, ref, queue, view, guard);
     this.geometry = new LocalPageGeometryService(docId, ref, queue, view, guard);
     this.render = new LocalPageRenderService(
       docId,

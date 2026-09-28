@@ -29,6 +29,7 @@ import { Stage } from '@embedpdf/react/stage';
 import { Scrollbar } from '@embedpdf/react/scrollbar';
 import { RenderLayer } from '@embedpdf/react/render';
 import { SelectionClipboard, SelectionHandles, SelectionLayer } from '@embedpdf/react/selection';
+import { A11yLayer } from '@embedpdf/react/a11y';
 import { AnnotationLayer, useFilePickerProvider } from '@embedpdf/react/annotation';
 import { LinkLayer } from '@embedpdf/react/link';
 import type { AnnotationRenderer } from '@embedpdf/react/annotation';
@@ -213,6 +214,7 @@ export function Shell() {
                       the base budget supplies — the thumbnail rail's demand
                       never does, so it mounts the same layer for free. */}
                     <RenderLayer annotations={false} />
+                    <A11yLayer />
                     <SelectionLayer />
                     <SearchLayer />
                     {/* Clickable links (nav plane): anchors under the default

@@ -10,6 +10,7 @@
   "types": "./dist/index.d.cts",
   "exports": {
     ".": "./src/index.ts",
+    "./a11y": "./src/a11y.tsx",
     "./actions": "./src/actions.tsx",
     "./anchored": "./src/anchored.tsx",
     "./annotation": "./src/annotation.tsx",
@@ -45,6 +46,10 @@
       ".": {
         "import": "./dist/index.js",
         "require": "./dist/index.cjs"
+      },
+      "./a11y": {
+        "import": "./dist/a11y.js",
+        "require": "./dist/a11y.cjs"
       },
       "./actions": {
         "import": "./dist/actions.js",
@@ -163,6 +168,7 @@
     "@embedpdf/core-geometry": "workspace:*",
     "@embedpdf/core": "workspace:*",
     "@embedpdf/plugin-annotation": "workspace:*",
+    "@embedpdf/plugin-a11y": "workspace:*",
     "@embedpdf/plugin-commands": "workspace:*",
     "@embedpdf/plugin-form": "workspace:*",
     "@embedpdf/plugin-i18n": "workspace:*",

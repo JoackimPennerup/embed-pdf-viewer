@@ -26,6 +26,7 @@ import { renderPlugin } from '@embedpdf/react/render';
 import { pageEditPlugin } from '@embedpdf/react/page-edit';
 import { feedbackPlugin, interactionPlugin, vibrationFeedback } from '@embedpdf/react/interaction';
 import { selectionPlugin } from '@embedpdf/react/selection';
+import { a11yPlugin } from '@embedpdf/react/a11y';
 import { annotationPlugin } from '@embedpdf/react/annotation';
 import { stampPlugin } from '@embedpdf/react/stamp';
 import { measurementPlugin } from '@embedpdf/react/measurement';
@@ -294,6 +295,7 @@ export function FullViewer({
     // (`wkFeedback`) instead.
     feedbackPlugin({ provider: vibrationFeedback }),
     selectionPlugin(),
+    a11yPlugin(),
     // The arrow tool is a `line` preset — same subtype, an arrowhead default. This is
     // the whole integration for a new tool: one `tools` entry + a command/toolbar
     // slot (see config/commands.ts + config/chrome.ts).

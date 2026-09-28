@@ -74,6 +74,7 @@ export { LocalDocumentHandle } from './document/LocalDocumentHandle';
 export { LocalDocumentAnnotationsService } from './document/LocalDocumentAnnotationsService';
 export { LocalDocumentPagesService } from './document/LocalDocumentPagesService';
 export { LocalPageHandle } from './document/LocalPageHandle';
+export { LocalPageAccessibilityService } from './document/LocalPageAccessibilityService';
 export { LocalPageAnnotationsService } from './document/LocalPageAnnotationsService';
 export { LocalPageGeometryService } from './document/LocalPageGeometryService';
 export { LocalPageRenderService } from './document/LocalPageRenderService';
