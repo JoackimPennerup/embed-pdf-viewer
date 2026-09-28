@@ -10,7 +10,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, useAttrs, provide } from 'vue';
-import { UI_ATTRIBUTES, UI_SELECTORS } from '@embedpdf/plugin-ui';
+import { UI_ATTRIBUTES } from '@embedpdf/plugin-ui';
+import {
+  createStyleSheetOwner,
+  getStyleSheetRegistry,
+  type StyleSheetLease,
+} from '@embedpdf/utils';
 import { useUIPlugin, useUICapability } from './hooks/use-ui';
 import { UI_CONTAINER_KEY, type UIContainerContextValue } from './hooks/use-ui-container';
 
@@ -35,65 +40,42 @@ const containerContext: UIContainerContextValue = {
 };
 provide(UI_CONTAINER_KEY, containerContext);
 
-let styleEl: HTMLStyleElement | null = null;
-let styleTarget: HTMLElement | ShadowRoot | null = null;
+const styleOwner = createStyleSheetOwner('@embedpdf/plugin-ui/vue');
+let styleLease: StyleSheetLease | null = null;
+let stylesheetCleanup: (() => void) | null = null;
 
 /**
  * Find the style injection target for an element.
  * Returns the shadow root if inside one, otherwise document.head.
  */
-function getStyleTarget(element: HTMLElement): HTMLElement | ShadowRoot {
+function getStyleRoot(element: HTMLElement): Document | ShadowRoot {
   const root = element.getRootNode();
-  if (root instanceof ShadowRoot) {
-    return root;
+  if (root.nodeType === 11 && 'host' in root) {
+    return root as ShadowRoot;
   }
-  return document.head;
+  return element.ownerDocument;
 }
 
-/**
- * Inject or update stylesheet
- */
-function injectStyles() {
+function setupStyles() {
+  stylesheetCleanup?.();
+  stylesheetCleanup = null;
+  styleLease?.dispose();
+  styleLease = null;
+
   if (!rootRef.value || !plugin.value) {
     return;
   }
 
-  styleTarget = getStyleTarget(rootRef.value);
-
-  // Check if styles already exist in this target
-  const existingStyle = styleTarget.querySelector(UI_SELECTORS.STYLES) as HTMLStyleElement | null;
-
-  if (existingStyle) {
-    styleEl = existingStyle;
-    // Update content in case locale changed
-    existingStyle.textContent = plugin.value.getStylesheet();
-    return;
-  }
-
-  // Create and inject stylesheet
-  const stylesheet = plugin.value.getStylesheet();
-  const newStyleEl = document.createElement('style');
-  newStyleEl.setAttribute(UI_ATTRIBUTES.STYLES, '');
-  newStyleEl.textContent = stylesheet;
-
-  if (styleTarget instanceof ShadowRoot) {
-    styleTarget.insertBefore(newStyleEl, styleTarget.firstChild);
-  } else {
-    styleTarget.appendChild(newStyleEl);
-  }
-
-  styleEl = newStyleEl;
-}
-
-/**
- * Cleanup styles
- */
-function cleanupStyles() {
-  if (styleEl?.parentNode) {
-    styleEl.remove();
-  }
-  styleEl = null;
-  styleTarget = null;
+  const currentPlugin = plugin.value;
+  styleLease = getStyleSheetRegistry(getStyleRoot(rootRef.value)).register({
+    owner: styleOwner,
+    slot: 'generated-ui',
+    order: 100,
+    css: currentPlugin.getStylesheet(),
+  });
+  stylesheetCleanup = currentPlugin.onStylesheetInvalidated(() => {
+    styleLease?.update(currentPlugin.getStylesheet());
+  });
 }
 
 // Build root element attributes
@@ -113,24 +95,11 @@ const rootAttrs = computed(() => {
   return result;
 });
 
-// Stylesheet invalidation cleanup
-let stylesheetCleanup: (() => void) | null = null;
-
 // Category change cleanup
 let categoryCleanup: (() => void) | null = null;
 
 onMounted(() => {
-  // Inject styles on mount
-  injectStyles();
-
-  // Subscribe to stylesheet invalidation
-  if (plugin.value) {
-    stylesheetCleanup = plugin.value.onStylesheetInvalidated(() => {
-      if (styleEl && plugin.value) {
-        styleEl.textContent = plugin.value.getStylesheet();
-      }
-    });
-  }
+  setupStyles();
 
   // Subscribe to category changes
   if (provides.value) {
@@ -145,15 +114,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  cleanupStyles();
   stylesheetCleanup?.();
+  styleLease?.dispose();
   categoryCleanup?.();
 });
 
-// Re-inject styles if plugin changes
-watch(plugin, () => {
-  if (rootRef.value && plugin.value) {
-    injectStyles();
-  }
-});
+watch(plugin, setupStyles);
 </script>

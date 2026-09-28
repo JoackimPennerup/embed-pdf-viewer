@@ -1,6 +1,9 @@
-import { UI_ATTRIBUTES, UI_SELECTORS } from '@embedpdf/plugin-ui';
-import { useUICapability, useUIPlugin } from './hooks/use-ui';
-import { UIContainerContext, UIContainerContextValue } from './hooks/use-ui-container';
+import { UI_ATTRIBUTES } from '@embedpdf/plugin-ui';
+import {
+  createStyleSheetOwner,
+  getStyleSheetRegistry,
+  type StyleSheetLease,
+} from '@embedpdf/utils';
 import {
   useState,
   useEffect,
@@ -11,16 +14,15 @@ import {
   HTMLAttributes,
 } from '@framework';
 
-/**
- * Find the style injection target for an element.
- * Returns the shadow root if inside one, otherwise document.head.
- */
-function getStyleTarget(element: HTMLElement): HTMLElement | ShadowRoot {
+import { useUICapability, useUIPlugin } from './hooks/use-ui';
+import { UIContainerContext, UIContainerContextValue } from './hooks/use-ui-container';
+
+function getStyleRoot(element: HTMLElement): Document | ShadowRoot {
   const root = element.getRootNode();
-  if (root instanceof ShadowRoot) {
-    return root;
+  if (root.nodeType === 11 && 'host' in root) {
+    return root as ShadowRoot;
   }
-  return document.head;
+  return element.ownerDocument;
 }
 
 interface UIRootProps extends HTMLAttributes<HTMLDivElement> {
@@ -38,9 +40,13 @@ export function UIRoot({ children, style, ...restProps }: UIRootProps) {
   const { provides } = useUICapability();
   const [disabledCategories, setDisabledCategories] = useState<string[]>([]);
   const [hiddenItems, setHiddenItems] = useState<string[]>([]);
-  const styleElRef = useRef<HTMLStyleElement | null>(null);
-  const styleTargetRef = useRef<HTMLElement | ShadowRoot | null>(null);
-  const previousElementRef = useRef<HTMLDivElement | null>(null);
+  const styleLeaseRef = useRef<StyleSheetLease | null>(null);
+  const styleOwnerRef = useRef<string | null>(null);
+  let styleOwner = styleOwnerRef.current;
+  if (!styleOwner) {
+    styleOwner = createStyleSheetOwner('@embedpdf/plugin-ui/react');
+    styleOwnerRef.current = styleOwner;
+  }
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Create container context value (memoized to prevent unnecessary re-renders)
@@ -52,80 +58,32 @@ export function UIRoot({ children, style, ...restProps }: UIRootProps) {
     [],
   );
 
-  // Callback ref that handles style injection when element mounts
-  // Handles React Strict Mode by tracking previous element
   const rootRefCallback = useCallback(
     (element: HTMLDivElement | null) => {
-      const previousElement = previousElementRef.current;
-
-      // Update refs
-      previousElementRef.current = element;
       (containerRef as any).current = element;
+      styleLeaseRef.current?.dispose();
+      styleLeaseRef.current = null;
 
-      // If element is null (unmount), don't do anything yet
-      // React Strict Mode will remount, so we'll handle cleanup in useEffect
-      if (!element) {
+      if (!element || !plugin) {
         return;
       }
 
-      // If element changed (or is new) and plugin is available, inject styles
-      if (element !== previousElement && plugin) {
-        const styleTarget = getStyleTarget(element);
-        styleTargetRef.current = styleTarget;
-
-        // Check if styles already exist in this target
-        const existingStyle = styleTarget.querySelector(
-          UI_SELECTORS.STYLES,
-        ) as HTMLStyleElement | null;
-
-        if (existingStyle) {
-          styleElRef.current = existingStyle;
-          // Update content in case locale changed
-          existingStyle.textContent = plugin.getStylesheet();
-          return;
-        }
-
-        // Create and inject stylesheet
-        const stylesheet = plugin.getStylesheet();
-        const styleEl = document.createElement('style');
-        styleEl.setAttribute(UI_ATTRIBUTES.STYLES, '');
-        styleEl.textContent = stylesheet;
-
-        if (styleTarget instanceof ShadowRoot) {
-          // For shadow root, prepend before other content
-          styleTarget.insertBefore(styleEl, styleTarget.firstChild);
-        } else {
-          styleTarget.appendChild(styleEl);
-        }
-
-        styleElRef.current = styleEl;
-      }
+      styleLeaseRef.current = getStyleSheetRegistry(getStyleRoot(element)).register({
+        owner: styleOwner,
+        slot: 'generated-ui',
+        order: 100,
+        css: plugin.getStylesheet(),
+      });
     },
-    [plugin],
+    [plugin, styleOwner],
   );
-
-  // Cleanup on actual unmount (not Strict Mode remount)
-  useEffect(() => {
-    return () => {
-      // Only cleanup if we're actually unmounting (not just Strict Mode)
-      // The style element will be reused if component remounts
-      if (styleElRef.current?.parentNode && !previousElementRef.current) {
-        styleElRef.current.remove();
-      }
-      styleElRef.current = null;
-      styleTargetRef.current = null;
-    };
-  }, []);
 
   // Subscribe to stylesheet invalidation (locale changes, schema merges)
   useEffect(() => {
     if (!plugin) return;
 
     return plugin.onStylesheetInvalidated(() => {
-      // Update the style element content
-      if (styleElRef.current) {
-        styleElRef.current.textContent = plugin.getStylesheet();
-      }
+      styleLeaseRef.current?.update(plugin.getStylesheet());
     });
   }, [plugin]);
 

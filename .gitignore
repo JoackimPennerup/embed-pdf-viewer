@@ -15,3 +15,9 @@ config/tsup.frameworks.config.bundled*
 publish-summary.json
 **/.svelte-kit
 **/*/*.tgz
+tests/csp/public/demo.pdf
+tests/csp/public/*.js
+!tests/csp/public/snippet.js
+tests/csp/public/pdfium.wasm
+tests/csp/test-results/
+tests/csp/playwright-report/

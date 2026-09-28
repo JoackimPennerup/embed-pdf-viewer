@@ -1,7 +1,6 @@
 import { h, Fragment } from 'preact';
 import type { JSX } from 'preact';
 import { useEffect, useMemo } from 'preact/hooks';
-import styles from '../styles/index.css';
 import { EmbedPDF } from '@embedpdf/core/preact';
 import { createPluginRegistration, PluginRegistry, PermissionConfig } from '@embedpdf/core';
 import { usePdfiumEngine } from '@embedpdf/engines/preact';
@@ -626,7 +625,6 @@ export function PDFViewer({ config, onRegistryReady }: PDFViewerProps) {
   if (!engine || isLoading)
     return (
       <div className="embedpdf-snippet-root" style={uiFontStyle}>
-        <style>{styles}</style>
         <div className="flex h-full w-full items-center justify-center">
           <LoadingIndicator size="lg" text="Initializing PDF engine..." />
         </div>
@@ -635,7 +633,6 @@ export function PDFViewer({ config, onRegistryReady }: PDFViewerProps) {
 
   return (
     <div className="embedpdf-snippet-root" style={uiFontStyle}>
-      <style>{styles}</style>
       <EmbedPDF
         config={{
           logger: config.log ? logger : undefined,

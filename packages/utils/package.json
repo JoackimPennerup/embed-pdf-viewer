@@ -44,6 +44,7 @@
     "build:svelte": "vite build --mode svelte",
     "build": "pnpm run clean && concurrently -c auto -n base,react,preact,vue,svelte \"vite build --mode base\" \"vite build --mode react\" \"vite build --mode preact\" \"vite build --mode vue\" \"vite build --mode svelte\"",
     "clean": "rimraf dist",
+    "test:unit": "vitest run tests/stylesheet-manager.test.ts",
     "lint": "eslint src --color",
     "lint:fix": "eslint src --color --fix"
   },
@@ -65,7 +66,8 @@
     "@embedpdf/models": "workspace:*",
     "@embedpdf/build": "workspace:*",
     "typescript": "^5.0.0",
-    "@types/react": "^18.2.0"
+    "@types/react": "^18.2.0",
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "react": ">=16.8.0",

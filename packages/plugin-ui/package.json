@@ -46,7 +46,8 @@
     "lint:fix": "eslint src --color --fix"
   },
   "dependencies": {
-    "@embedpdf/models": "workspace:*"
+    "@embedpdf/models": "workspace:*",
+    "@embedpdf/utils": "workspace:*"
   },
   "devDependencies": {
     "@embedpdf/core": "workspace:*",
@@ -55,7 +56,6 @@
     "@embedpdf/plugin-scroll": "workspace:*",
     "@embedpdf/plugin-viewport": "workspace:*",
     "@embedpdf/plugin-i18n": "workspace:*",
-    "@embedpdf/utils": "workspace:*",
     "@types/react": "^18.2.0",
     "typescript": "^5.0.0"
   },

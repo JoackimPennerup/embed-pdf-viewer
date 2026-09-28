@@ -1,6 +1,8 @@
 import { h, render } from 'preact';
 import { PDFViewer, PDFViewerConfig } from '@/components/app';
 import { PluginRegistry } from '@embedpdf/core';
+import { getStyleSheetRegistry, type StyleSheetLease } from '@embedpdf/utils';
+import styles from '../styles/index.css';
 import {
   ThemeConfig,
   ThemePreference,
@@ -26,7 +28,8 @@ export class EmbedPdfContainer extends (BaseElement as typeof HTMLElement) {
   private _config?: PDFViewerConfig;
   private _registryPromise: Promise<PluginRegistry>;
   private _resolveRegistry: ((registry: PluginRegistry) => void) | null = null;
-  private themeStyleEl: HTMLStyleElement | null = null;
+  private baseStyleLease: StyleSheetLease | null = null;
+  private themeStyleLease: StyleSheetLease | null = null;
   private systemPreferenceCleanup: (() => void) | null = null;
 
   constructor() {
@@ -49,6 +52,7 @@ export class EmbedPdfContainer extends (BaseElement as typeof HTMLElement) {
         theme: this.parseThemeAttribute(),
       };
     }
+    this.setupStyles();
     this.setupTheme();
     this.renderViewer();
   }
@@ -57,6 +61,10 @@ export class EmbedPdfContainer extends (BaseElement as typeof HTMLElement) {
     // Clean up system preference listener
     this.systemPreferenceCleanup?.();
     this.systemPreferenceCleanup = null;
+    this.baseStyleLease?.dispose();
+    this.baseStyleLease = null;
+    this.themeStyleLease?.dispose();
+    this.themeStyleLease = null;
 
     // Unmount Preact components - triggers cleanup chain (engine destroy, plugin cleanup, etc.)
     render(null, this.root);
@@ -169,6 +177,22 @@ export class EmbedPdfContainer extends (BaseElement as typeof HTMLElement) {
     this.injectTheme();
   }
 
+  private setupStyles() {
+    const registry = getStyleSheetRegistry(this.root);
+    this.baseStyleLease = registry.register({
+      owner: '@embedpdf/snippet',
+      slot: 'base',
+      order: 200,
+      css: styles,
+    });
+    this.themeStyleLease = registry.register({
+      owner: '@embedpdf/snippet',
+      slot: 'theme',
+      order: 300,
+      css: generateThemeStylesheet(this.resolveActiveTheme()),
+    });
+  }
+
   /**
    * Injects the theme CSS into the shadow root
    */
@@ -176,19 +200,7 @@ export class EmbedPdfContainer extends (BaseElement as typeof HTMLElement) {
     const theme = this.resolveActiveTheme();
     const css = generateThemeStylesheet(theme);
 
-    // Find existing theme style or create new one
-    let existingStyle = this.root.querySelector(
-      'style[data-embedpdf-theme]',
-    ) as HTMLStyleElement | null;
-
-    if (!existingStyle) {
-      existingStyle = document.createElement('style');
-      existingStyle.setAttribute('data-embedpdf-theme', '');
-      this.root.appendChild(existingStyle); // Append at end, after Preact content
-    }
-
-    this.themeStyleEl = existingStyle;
-    this.themeStyleEl.textContent = css;
+    this.themeStyleLease?.update(css);
 
     // Set data attribute for external CSS targeting
     this.setAttribute('data-color-scheme', this.activeColorScheme);
@@ -257,8 +269,5 @@ export class EmbedPdfContainer extends (BaseElement as typeof HTMLElement) {
       <PDFViewer config={this._config} onRegistryReady={this.handleRegistryReady} />,
       this.root,
     );
-
-    // ADDED: Re-inject theme AFTER Preact render (since render clears the container)
-    this.injectTheme();
   }
 }

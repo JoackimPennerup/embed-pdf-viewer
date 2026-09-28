@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { UI_ATTRIBUTES, UI_SELECTORS } from '@embedpdf/plugin-ui';
+  import { UI_ATTRIBUTES } from '@embedpdf/plugin-ui';
+  import { createStyleSheetOwner, getStyleSheetRegistry } from '@embedpdf/utils';
   import { useUIPlugin, useUICapability } from './hooks/use-ui.svelte';
   import { setUIContainerContext } from './hooks/use-ui-container.svelte';
   import type { Snippet } from 'svelte';
@@ -17,68 +18,41 @@
   let disabledCategories = $state<string[]>([]);
   let hiddenItems = $state<string[]>([]);
   let rootElement: HTMLDivElement | null = $state(null);
-  let styleEl: HTMLStyleElement | null = null;
-  let styleTarget: HTMLElement | ShadowRoot | null = null;
+  const styleOwner = createStyleSheetOwner('@embedpdf/plugin-ui/svelte');
 
   // Provide container context for child components
   setUIContainerContext({
     getContainer: () => rootElement,
   });
 
-  function getStyleTarget(element: HTMLElement): HTMLElement | ShadowRoot {
+  function getStyleRoot(element: HTMLElement): Document | ShadowRoot {
     const root = element.getRootNode();
-    if (root instanceof ShadowRoot) {
-      return root;
+    if (root.nodeType === 11 && 'host' in root) {
+      return root as ShadowRoot;
     }
-    return document.head;
+    return element.ownerDocument;
   }
 
   $effect(() => {
     if (!rootElement || !plugin) {
-      styleTarget = null;
       return;
     }
 
-    styleTarget = getStyleTarget(rootElement);
-
-    const existingStyle = styleTarget.querySelector(UI_SELECTORS.STYLES) as HTMLStyleElement | null;
-
-    if (existingStyle) {
-      styleEl = existingStyle;
-      existingStyle.textContent = plugin.getStylesheet();
-      return;
-    }
-
-    const stylesheet = plugin.getStylesheet();
-    const newStyleEl = document.createElement('style');
-    newStyleEl.setAttribute(UI_ATTRIBUTES.STYLES, '');
-    newStyleEl.textContent = stylesheet;
-
-    if (styleTarget instanceof ShadowRoot) {
-      styleTarget.insertBefore(newStyleEl, styleTarget.firstChild);
-    } else {
-      styleTarget.appendChild(newStyleEl);
-    }
-
-    styleEl = newStyleEl;
+    const currentPlugin = plugin;
+    const lease = getStyleSheetRegistry(getStyleRoot(rootElement)).register({
+      owner: styleOwner,
+      slot: 'generated-ui',
+      order: 100,
+      css: currentPlugin.getStylesheet(),
+    });
+    const unsubscribe = currentPlugin.onStylesheetInvalidated(() => {
+      lease.update(currentPlugin.getStylesheet());
+    });
 
     return () => {
-      if (styleEl?.parentNode) {
-        styleEl.remove();
-      }
-      styleEl = null;
-      styleTarget = null;
+      unsubscribe();
+      lease.dispose();
     };
-  });
-
-  $effect(() => {
-    if (!plugin) return;
-
-    return plugin.onStylesheetInvalidated(() => {
-      if (styleEl) {
-        styleEl.textContent = plugin.getStylesheet();
-      }
-    });
   });
 
   $effect(() => {
