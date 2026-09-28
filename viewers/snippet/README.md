@@ -56,6 +56,14 @@ That’s it—refresh and enjoy a full‑featured viewer.
 
 ---
 
+## Content Security Policy
+
+EmbedPDF uses constructed stylesheets for generated viewer CSS, so a nonce-only `style-src` policy does not need `'unsafe-inline'` for the viewer's stylesheets. The host must still authorize its own bootstrap script and required PDF, WASM, worker, image, and font resources.
+
+See the [Content Security Policy guide](https://www.embedpdf.com/docs/csp) for the tested profile, browser requirements, directive guidance, and current limitations.
+
+---
+
 ## 🛠 Basic Usage Pattern
 
 1. **Container** – create a DOM element where the viewer will render.

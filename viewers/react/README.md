@@ -200,6 +200,12 @@ Read the [Headless Documentation](https://www.embedpdf.com/docs/react/headless/i
 
 ---
 
+## Content Security Policy
+
+The high-level React viewer uses constructed stylesheets for generated viewer CSS. See the [Content Security Policy guide](https://www.embedpdf.com/docs/csp) for the tested policy, required browser APIs, resource directives, and current limitations.
+
+---
+
 ## 📄 License
 
 EmbedPDF is [MIT licensed](https://github.com/embedpdf/embed-pdf-viewer/blob/main/LICENSE). Commercial use is welcome—just keep the copyright headers intact.

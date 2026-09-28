@@ -1,0 +1,92 @@
+---
+title: Content Security Policy
+description: Configure browser Content Security Policy for EmbedPDF integrations.
+searchable: true
+---
+
+import { Callout } from '@/components/callout'
+
+# Content Security Policy
+
+EmbedPDF uses constructed stylesheets for its generated viewer CSS. This allows the viewer chrome and theme to work without adding `'unsafe-inline'` to `style-src` or attaching a nonce to runtime `<style>` elements.
+
+<Callout type="info">
+  This page describes browser Content Security Policy (CSP). PDF encryption and
+  document permission flags are separate features covered by each integration's
+  **Security & Permissions** page.
+</Callout>
+
+## Phase 1 Compatibility
+
+The initial CSP work targets the default high-level viewer delivered by `@embedpdf/snippet` and `@embedpdf/react-pdf-viewer`, including the loading UI, generated plugin UI rules, and runtime theme changes.
+
+| Profile                                               | Status         | Scope                                                                              |
+| ----------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------- |
+| Chromium, snippet, nonce-only `style-src`             | Supported      | Built viewer and theme flow with self-hosted assets and `worker: false`            |
+| Chromium, React `<PDFViewer>`, nonce-only `style-src` | Supported      | Built viewer and theme flow with self-hosted assets and `worker: false`            |
+| Vue and Svelte high-level viewers                     | Conditional    | They share the snippet delivery, but dedicated production-bundle tests are pending |
+| `style-src-attr 'none'`                               | Not yet tested | Optional and framework-specific string styles are being audited separately         |
+| Standard CDN resource policy                          | Not yet tested | Directive-specific host allowlists are planned                                     |
+| Default Blob-worker resource policy                   | Not yet tested | The self-hosted direct-engine profile is verified; default worker mode is pending  |
+| Browsers without constructed stylesheets              | Unsupported    | `CSSStyleSheet.replaceSync` and `adoptedStyleSheets` are required                  |
+
+The fix was developed after the `2.15.1` release against the v2 branch. Check the release notes for the first package version that includes it. The browser fixture uses a same-origin PDF and WASM file, disables external fonts and stamp manifests, renders a real page through the direct engine, and asserts that no style violation occurs. The default Blob-worker resource profile remains a phase 3 test target.
+
+## Minimal Style Policy
+
+The policy reported in [issue #818](https://github.com/embedpdf/embed-pdf-viewer/issues/818) can keep a nonce-only `style-src` without allowing unsafe inline stylesheets:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{RANDOM}' 'wasm-unsafe-eval'; style-src 'self' 'nonce-{RANDOM}'; worker-src 'self' blob:; connect-src 'self' https:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'
+```
+
+The nonce in this example authorizes the host application's own inline bootstrap. EmbedPDF's generated CSS uses constructed stylesheets and does not consume the nonce. Prefer an external same-origin bootstrap instead of an inline script when possible.
+
+Do not add `'unsafe-inline'` or broad `'unsafe-eval'` to work around EmbedPDF code. WebAssembly compilation may require the narrower `'wasm-unsafe-eval'` source in browsers that implement it.
+
+## Directive Guide
+
+| Directive        | Phase 1 guidance                                                                                                                                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `script-src`     | Allow the self-hosted viewer bundle or its configured CDN origin. Authorize host-written inline bootstrap code separately with a nonce or hash.                              |
+| `style-src`      | Generated EmbedPDF sheets do not require `'unsafe-inline'`. Permit configured external font stylesheet origins when webfonts are enabled.                                    |
+| `style-src-attr` | A complete `'none'` profile is not yet verified. Direct DOM property writes are supported by modern CSP implementations, but remaining string-style paths are being audited. |
+| `worker-src`     | The default PDFium and encoder workers use `blob:`. The direct-engine path is verified with `worker: false`; a complete `worker-src 'none'` profile remains untested.        |
+| `connect-src`    | Permit the configured PDF, PDFium WASM, fallback-font, stamp, and other remote asset origins.                                                                                |
+| `img-src`        | Rendered pages and thumbnails currently use `blob:`. Some optional annotation and signature flows use `data:`.                                                               |
+| `font-src`       | Permit configured UI, signature, and PDF fallback font origins, or disable/self-host those fonts.                                                                            |
+| `frame-src`      | Printing uses a Blob PDF iframe. Ordinary viewing does not require it.                                                                                                       |
+
+See [Running Airgapped](/docs/snippet/airgapped) for the configuration used to self-host or disable external assets. Resource-policy profiles will be documented only after browser verification.
+
+## Constructed Stylesheets
+
+The viewer registers generated styles against the `Document` or `ShadowRoot` that owns the UI. It preserves host-adopted stylesheets, orders EmbedPDF's generated UI, base, and theme sheets deterministically, updates them in place, and releases only sheets owned by EmbedPDF.
+
+There is no `<style>` fallback. Browsers must support:
+
+- `new CSSStyleSheet()`
+- `CSSStyleSheet.prototype.replaceSync()`
+- `Document.adoptedStyleSheets`
+- `ShadowRoot.adoptedStyleSheets`
+
+The same registry can accept dynamic, viewer-scoped rules from plugins such as an accessibility text layer. Dynamic rules must scope selectors to their viewer and page identity, avoid `@import`, and dispose their registration when no longer needed.
+
+## Scope And Limitations
+
+EmbedPDF can guarantee only library-owned behavior. Host-authored styles, framework wrappers, third-party plugins, and host bootstrap scripts remain the host application's responsibility.
+
+Policies that block viewer scripts, WebAssembly compilation, the PDF/WASM requests, Blob page images, or every available worker mode cannot support the current renderer. Optional signature, form, annotation, hint, print, and external-font flows are not all covered by the initial phase-1 profile.
+
+## Troubleshooting
+
+Start with `Content-Security-Policy-Report-Only` and listen for `securitypolicyviolation` events before enforcing a policy. Record these fields separately for style and non-style failures:
+
+- `effectiveDirective`
+- `violatedDirective`
+- `blockedURI`
+- `sourceFile`, `lineNumber`, and `columnNumber`
+
+Confirm that a page actually renders and that the viewer controls and theme have their expected computed styles. The absence of style violations alone does not prove that worker, WASM, PDF, image, or font resources loaded successfully.
+
+Do not use `'unsafe-inline'` as a troubleshooting fix. Identify the owning resource or code path and grant only the required source, nonce, hash, or configuration change.

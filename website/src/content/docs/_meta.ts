@@ -15,6 +15,10 @@ export default {
     title: 'EmbedPDF Snippet',
     type: 'page',
   },
+  csp: {
+    title: 'Content Security Policy',
+    type: 'page',
+  },
   engines: {
     title: 'Engines',
     type: 'page',
